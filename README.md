@@ -70,7 +70,7 @@ Base path: `/api/tailor-companion/v1`
 | `GET /files/{id}` | Download an attachment |
 
 The full contract — request/response schemas, error codes, field mapping — is
-in [`docs/openapi.yaml`](docs/openapi.yaml) (OpenAPI 3.1). Rendered docs are
+in [`docs/openapi.yaml`](docs/openapi.yaml) (OpenAPI 3.0). Rendered docs are
 published from that spec.
 
 ## Testing

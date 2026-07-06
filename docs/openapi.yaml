@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
   title: Tailor Companion API
   version: "1.0.0"
@@ -495,10 +495,8 @@ components:
         id: { type: integer, nullable: true }
         entry:
           allOf: [{ $ref: "#/components/schemas/Entry" }]
-          nullable: true
           description: Present on ok — the canonical server entry.
         server_state:
-          nullable: true
           description: >-
             On conflict — the untouched server entry object, or the string
             "deleted" when the record was deleted server-side.
@@ -513,7 +511,7 @@ components:
               field: { type: string }
               code: { type: string, enum: [unknown_field, readonly_field] }
               message: { type: string }
-              value: { description: The rejected value, returned so nothing is lost. }
+              value: { description: "The rejected value, returned so nothing is lost." }
         errors:
           type: object
           additionalProperties:
