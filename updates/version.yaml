@@ -1,0 +1,8 @@
+1.0.1:
+    - Initialize plugin with token, audit log and change journal tables
+    - create_tokens_table.php
+    - create_audit_logs_table.php
+    - create_journal_table.php
+1.0.2:
+    - Add plugin state table (journal prune high-water mark)
+    - create_state_table.php

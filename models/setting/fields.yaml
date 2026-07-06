@@ -1,0 +1,22 @@
+# ===================================
+#  Settings Form Field Definitions
+# ===================================
+
+fields:
+    api_enabled:
+        label: Enable API
+        comment: Master switch — when disabled, every companion app request is rejected.
+        type: switch
+        default: true
+
+    token_expiry_days:
+        label: Token expiry (days)
+        comment: New tokens expire after this many days. 0 means tokens never expire.
+        type: number
+        default: 0
+
+    journal_retention_days:
+        label: Change journal retention (days)
+        comment: Journal entries older than this are pruned daily. Devices that have not synced within this window perform a full re-sync.
+        type: number
+        default: 60

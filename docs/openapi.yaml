@@ -1,0 +1,530 @@
+openapi: 3.1.0
+info:
+  title: Tailor Companion API
+  version: "1.0.0"
+  description: >-
+    Token-authenticated REST API exposed by the Renick.TailorCompanion October
+    CMS plugin. Lets a native client browse, sync and edit Tailor content
+    offline-first. All responses use a `{ "data": ..., "meta": ... }` envelope;
+    errors use `{ "error": { "code", "message" } }`.
+  license:
+    name: MIT
+    url: https://github.com/renickbuettner/tailor-bridge-plugin/blob/main/LICENSE
+
+servers:
+  - url: "{baseUrl}/api/tailor-companion/v1"
+    description: Your October CMS install
+    variables:
+      baseUrl:
+        default: https://your-site.tld
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+  - name: Schema
+  - name: Entries
+  - name: Sync
+  - name: Files
+
+paths:
+  /auth/token:
+    post:
+      tags: [Auth]
+      summary: Issue an access token from credentials
+      description: >-
+        Manual pairing path. Verifies a backend user's login and password and
+        returns a bearer token. Hard-throttled (5/min). The primary pairing
+        path is a QR code generated in the backend.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login, password]
+              properties:
+                login: { type: string }
+                password: { type: string, format: password }
+                device_name: { type: string, maxLength: 120 }
+      responses:
+        "201":
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string, description: Raw token — shown once }
+                      token_prefix: { type: string }
+                      name: { type: string, nullable: true }
+                      expires_at: { type: string, format: date-time, nullable: true }
+                      url: { type: string, format: uri }
+                      user: { $ref: "#/components/schemas/UserInfo" }
+        "401": { $ref: "#/components/responses/InvalidCredentials" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /ping:
+    get:
+      tags: [Auth]
+      summary: Auth check and server metadata
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      api_version: { type: integer, example: 1 }
+                      plugin_version: { type: string, nullable: true }
+                      october_version: { type: string, nullable: true }
+                      user: { $ref: "#/components/schemas/UserInfo" }
+                      schema_version:
+                        type: string
+                        description: Global schema fingerprint; changes when any blueprint changes.
+                      server_time: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /schema:
+    get:
+      tags: [Schema]
+      summary: All blueprints, normalized
+      description: >-
+        Every entry blueprint and global aggregated into the wire structure the
+        client renders forms from. `ETag` equals the global `schema_version`;
+        send it back as `If-None-Match` to get `304`.
+      parameters:
+        - in: header
+          name: If-None-Match
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/BlueprintSchema" }
+                  meta:
+                    type: object
+                    properties:
+                      schema_version: { type: string }
+        "304": { description: Not modified (schema unchanged) }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /entries/{uuid}:
+    get:
+      tags: [Entries]
+      summary: Cursor-paginated entries of a blueprint
+      parameters:
+        - $ref: "#/components/parameters/BlueprintUuid"
+        - in: query
+          name: cursor
+          schema: { type: integer, default: 0 }
+          description: Last seen entry id; page returns entries with a greater id.
+        - in: query
+          name: per_page
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Entry" }
+                  meta:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        nullable: true
+                        description: Present only on the first page (cursor=0).
+                      has_more: { type: boolean }
+                      next_cursor: { type: integer, nullable: true }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /entries/{uuid}/{id}:
+    get:
+      tags: [Entries]
+      summary: A single entry
+      parameters:
+        - $ref: "#/components/parameters/BlueprintUuid"
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Entry" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /sync/changes:
+    get:
+      tags: [Sync]
+      summary: Incremental change journal
+      description: >-
+        Coalesced create/update/delete records since a cursor. Omit `since` to
+        signal the client has no cursor yet (full pull required). A `since`
+        older than pruned history returns `410`.
+      parameters:
+        - in: query
+          name: since
+          schema: { type: integer }
+          description: Cursor from a previous response's `latest_cursor`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ChangeItem" }
+                  meta:
+                    type: object
+                    properties:
+                      full_pull_required: { type: boolean }
+                      latest_cursor: { type: integer }
+                      has_more:
+                        type: boolean
+                        description: The journal window was capped; request again with latest_cursor.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "410": { $ref: "#/components/responses/CursorExpired" }
+
+  /sync/batch:
+    post:
+      tags: [Sync]
+      summary: Apply a batch of write operations
+      description: >-
+        Operations are applied in order; each yields an independent result
+        (`ok` / `conflict` / `error`). Blueprint validation always runs.
+        Unknown or read-only fields are returned as warnings, never dropped
+        silently. Max 100 ops per batch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ops]
+              properties:
+                ops:
+                  type: array
+                  maxItems: 100
+                  items: { $ref: "#/components/schemas/BatchOp" }
+      responses:
+        "200":
+          description: Per-op results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      results:
+                        type: array
+                        items: { $ref: "#/components/schemas/BatchResult" }
+                  meta:
+                    type: object
+                    properties:
+                      applied: { type: integer }
+                      conflicts: { type: integer }
+                      errors: { type: integer }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /files:
+    post:
+      tags: [Files]
+      summary: Upload an attachment
+      description: >-
+        Multipart upload. Returns a file descriptor whose `id` is then
+        referenced in a `fileupload` field of a subsequent batch op. Max 50 MB;
+        only safe media/document extensions are accepted.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/FileDescriptor" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /files/{id}:
+    get:
+      tags: [Files]
+      summary: Download an attachment
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The file stream
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: "`Authorization: Bearer <token>`"
+
+  parameters:
+    BlueprintUuid:
+      in: path
+      name: uuid
+      required: true
+      schema: { type: string, format: uuid }
+      description: Blueprint uuid (from /schema).
+
+  responses:
+    Unauthorized:
+      description: Missing, invalid, revoked or expired token; or the API is disabled.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    InvalidCredentials:
+      description: Login or password incorrect.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: The user is not permitted to use the API or is deactivated.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Unknown blueprint, entry or file.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ValidationError:
+      description: Invalid request body.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    CursorExpired:
+      description: Journal history after the cursor was pruned; perform a full pull.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    TooManyRequests:
+      description: Rate limit exceeded.
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, example: invalid_token }
+            message: { type: string }
+
+    UserInfo:
+      type: object
+      properties:
+        login: { type: string }
+        name: { type: string }
+
+    BlueprintSchema:
+      type: object
+      properties:
+        uuid: { type: string, format: uuid }
+        handle: { type: string, example: "Blog\\Post" }
+        handle_slug: { type: string }
+        name: { type: string }
+        type:
+          type: string
+          enum: [entry, stream, structure, single, global]
+        structure:
+          type: object
+          nullable: true
+          properties:
+            max_depth: { type: integer }
+            tree: { type: boolean }
+        drafts: { type: boolean }
+        multisite: { type: boolean }
+        groups:
+          type: array
+          nullable: true
+          items: { type: string }
+        fingerprint:
+          type: string
+          description: Per-blueprint content hash; changes only when the blueprint changes.
+        entry_count: { type: integer }
+        fields:
+          type: array
+          items: { $ref: "#/components/schemas/Field" }
+
+    Field:
+      type: object
+      properties:
+        name: { type: string }
+        type: { type: string, description: "Tailor field type code (text, richeditor, entries, …)" }
+        kind:
+          type: string
+          enum: [scalar, json, media, relation, attachment, nested, unknown]
+          description: How the value is stored/transported.
+        label: { type: string }
+        tab: { type: string, nullable: true }
+        span: { type: string, nullable: true }
+        comment: { type: string, nullable: true }
+        hidden: { type: boolean }
+        required: { type: boolean }
+        readonly: { type: boolean, description: "True for inverse relations." }
+        custom: { type: boolean, description: "Non-core field type → client renders a placeholder." }
+        implicit: { type: boolean, description: "Model-added field (title, slug, is_enabled, …)." }
+        config:
+          type: object
+          additionalProperties: true
+          description: "Kind-specific extras: options, source_uuid, max_items, form, etc."
+
+    Entry:
+      type: object
+      properties:
+        id: { type: integer }
+        blueprint_uuid: { type: string, format: uuid }
+        content_group: { type: string, nullable: true }
+        title: { type: string, nullable: true }
+        slug: { type: string, nullable: true }
+        is_enabled: { type: boolean }
+        published_at: { type: string, format: date-time, nullable: true }
+        expired_at: { type: string, format: date-time, nullable: true }
+        site_id: { type: integer, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+        updated_at: { type: string, format: date-time, nullable: true }
+        fields:
+          type: object
+          additionalProperties: true
+          description: >-
+            Field values keyed by field name. Scalars as primitives, json kinds
+            as arrays, relations as id (single) or id array (multi), attachments
+            as arrays of file descriptors, nested (repeater) as arrays of items.
+        relation_labels:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              properties:
+                id: { type: integer }
+                title: { type: string }
+
+    ChangeItem:
+      type: object
+      properties:
+        cursor: { type: integer }
+        blueprint_uuid: { type: string, format: uuid }
+        record_id: { type: integer }
+        action: { type: string, enum: [created, updated, deleted] }
+
+    BatchOp:
+      type: object
+      required: [op, blueprint_uuid]
+      properties:
+        op: { type: string, enum: [create, update, delete] }
+        blueprint_uuid: { type: string, format: uuid }
+        local_id: { type: string, description: "Client id echoed back for mapping." }
+        id: { type: integer, description: "Server id (update/delete)." }
+        base_updated_at:
+          type: string
+          format: date-time
+          description: "Server timestamp the edit was based on (optimistic concurrency)."
+        content_group: { type: string }
+        fields:
+          type: object
+          additionalProperties: true
+
+    BatchResult:
+      type: object
+      properties:
+        status: { type: string, enum: [ok, conflict, error] }
+        op: { type: string }
+        local_id: { type: string, nullable: true }
+        id: { type: integer, nullable: true }
+        entry:
+          allOf: [{ $ref: "#/components/schemas/Entry" }]
+          nullable: true
+          description: Present on ok — the canonical server entry.
+        server_state:
+          nullable: true
+          description: >-
+            On conflict — the untouched server entry object, or the string
+            "deleted" when the record was deleted server-side.
+          oneOf:
+            - { $ref: "#/components/schemas/Entry" }
+            - { type: string, enum: [deleted] }
+        warnings:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              code: { type: string, enum: [unknown_field, readonly_field] }
+              message: { type: string }
+              value: { description: The rejected value, returned so nothing is lost. }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+
+    FileDescriptor:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        size: { type: integer }
+        content_type: { type: string }
+        url: { type: string, format: uri }

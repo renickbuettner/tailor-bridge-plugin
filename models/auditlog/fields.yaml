@@ -1,0 +1,43 @@
+# ===================================
+#  Form Field Definitions (preview)
+# ===================================
+
+fields:
+    action:
+        label: Action
+        span: left
+
+    created_at:
+        label: Date & Time
+        span: right
+
+    blueprint_handle:
+        label: Blueprint
+        span: left
+
+    record_id:
+        label: Record ID
+        span: right
+
+    user[login]:
+        label: User
+        span: left
+
+    token[token_prefix]:
+        label: Token
+        span: right
+
+    ip:
+        label: IP Address
+        span: left
+
+    user_agent:
+        label: User Agent
+        span: right
+
+    diff_pretty:
+        label: Changes
+        type: textarea
+        size: giant
+        attributes:
+            style: 'font-family: monospace;'

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit backupGlobals="false"
+         backupStaticAttributes="false"
+         bootstrap="../../../modules/system/tests/bootstrap.php"
+         colors="true"
+         processIsolation="false"
+         stopOnFailure="false"
+>
+    <testsuites>
+        <testsuite name="Renick.TailorCompanion Test Suite">
+            <directory>./tests</directory>
+        </testsuite>
+    </testsuites>
+
+    <php>
+        <env name="APP_ENV" value="testing" />
+        <env name="APP_LOCALE" value="en" />
+        <env name="CACHE_DRIVER" value="array" />
+        <env name="CACHE_STORE" value="array" />
+        <env name="SESSION_DRIVER" value="array" />
+        <env name="ACTIVE_THEME" value="companion" />
+        <env name="CMS_SAFE_MODE" value="false" />
+        <env name="CMS_ROUTE_CACHE" value="false" />
+        <env name="ENABLE_CSRF" value="false" />
+        <env name="DB_CONNECTION" value="sqlite" />
+        <env name="DB_DATABASE" value=":memory:" />
+    </php>
+</phpunit>

@@ -1,0 +1,26 @@
+{
+    "name": "renick/tailorcompanion-plugin",
+    "type": "october-plugin",
+    "description": "Token-authenticated REST API that lets a native app browse, sync and edit October CMS Tailor content offline-first.",
+    "homepage": "https://github.com/renickbuettner/tailor-bridge-plugin",
+    "keywords": ["october cms", "october", "tailor", "api", "rest", "sync", "offline", "headless"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Renick Büttner",
+            "homepage": "https://renick.io"
+        }
+    ],
+    "require": {
+        "php": ">=8.2",
+        "composer/installers": "~1.0 || ~2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Renick\\TailorCompanion\\": ""
+        }
+    },
+    "extra": {
+        "installer-name": "tailorcompanion"
+    }
+}

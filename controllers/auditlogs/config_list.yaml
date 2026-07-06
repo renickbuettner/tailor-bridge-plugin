@@ -1,0 +1,18 @@
+# ===================================
+#  List Behavior Config
+# ===================================
+
+title: App Audit Log
+list: $/renick/tailorcompanion/models/auditlog/columns.yaml
+modelClass: Renick\TailorCompanion\Models\AuditLog
+recordUrl: renick/tailorcompanion/auditlogs/preview/:id
+noRecordsMessage: backend::lang.list.no_records
+recordsPerPage: 30
+showSetup: true
+defaultSort:
+    column: id
+    direction: desc
+
+toolbar:
+    search:
+        prompt: backend::lang.list.search_prompt

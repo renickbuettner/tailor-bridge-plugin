@@ -1,0 +1,42 @@
+# ===================================
+#  Column Definitions
+# ===================================
+
+columns:
+    id:
+        label: ID
+        searchable: true
+        width: 75px
+
+    created_at:
+        label: Date & Time
+        type: timetense
+        sortable: true
+        width: 160px
+
+    action:
+        label: Action
+        searchable: true
+        sortable: true
+        width: 120px
+
+    user_login:
+        label: User
+        relation: user
+        select: login
+        searchable: true
+        sortable: false
+
+    blueprint_handle:
+        label: Blueprint
+        sortable: false
+
+    record_id:
+        label: Record
+        sortable: true
+        width: 90px
+
+    ip:
+        label: IP
+        searchable: true
+        width: 130px

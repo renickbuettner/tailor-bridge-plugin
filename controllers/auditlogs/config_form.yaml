@@ -1,0 +1,11 @@
+# ===================================
+#  Form Behavior Config
+# ===================================
+
+name: Audit Entry
+form: $/renick/tailorcompanion/models/auditlog/fields.yaml
+modelClass: Renick\TailorCompanion\Models\AuditLog
+defaultRedirect: renick/tailorcompanion/auditlogs
+
+preview:
+    title: Audit Entry
