@@ -27,6 +27,7 @@ tags:
   - name: Entries
   - name: Sync
   - name: Files
+  - name: System
 
 paths:
   /auth/token:
@@ -212,6 +213,46 @@ paths:
                   data: { $ref: "#/components/schemas/Entry" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /logs:
+    get:
+      tags: [System]
+      summary: Tail of the application error log
+      description: >-
+        Returns the last N lines of the OctoberCMS application log for a
+        console view in the app. Read as a bounded reverse-tail, so a large
+        log stays fast. Gated by the `logs_enabled` backend setting.
+      parameters:
+        - in: query
+          name: lines
+          schema: { type: integer, default: 1000, minimum: 1, maximum: 10000 }
+          description: How many trailing lines to return (clamped to 10000).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { type: string }
+                    description: Log lines, oldest first.
+                  meta:
+                    type: object
+                    properties:
+                      file: { type: string, nullable: true }
+                      exists: { type: boolean }
+                      size_bytes: { type: integer }
+                      returned: { type: integer }
+                      truncated:
+                        type: boolean
+                        description: True when the log has more lines than returned.
+                      max_lines: { type: integer }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: Log access disabled in backend settings (`logs_disabled`).
 
   /records/{uuid}/{field}:
     get:

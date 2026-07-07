@@ -6,6 +6,7 @@ use Renick\TailorCompanion\Classes\Api\EntriesController;
 use Renick\TailorCompanion\Classes\Api\FilesController;
 use Renick\TailorCompanion\Classes\Api\GlobalsController;
 use Renick\TailorCompanion\Classes\Api\IssueTokenController;
+use Renick\TailorCompanion\Classes\Api\LogsController;
 use Renick\TailorCompanion\Classes\Api\PingController;
 use Renick\TailorCompanion\Classes\Api\RecordsController;
 use Renick\TailorCompanion\Classes\Api\SchemaController;
@@ -36,6 +37,8 @@ Route::group([
     Route::group(['middleware' => ['throttle:120,1,api', TokenAuth::class]], function () {
         Route::get('ping', PingController::class);
         Route::get('sites', SitesController::class);
+        // Tail of the application error log (console view in the app)
+        Route::get('logs', LogsController::class);
 
         // Site-scoped endpoints (X-Tailor-Site header selects the site)
         Route::group(['middleware' => [SiteContext::class]], function () {

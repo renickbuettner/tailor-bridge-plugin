@@ -20,3 +20,9 @@ fields:
         comment: Journal entries older than this are pruned daily. Devices that have not synced within this window perform a full re-sync.
         type: number
         default: 60
+
+    logs_enabled:
+        label: Expose error log to the app
+        comment: Lets paired apps read the tail of the application log. Logs can contain sensitive data — disable to hide them.
+        type: switch
+        default: true

@@ -32,6 +32,8 @@ incrementally, and logs all mutations to an audit trail.
 - **File uploads** — scoped, validated attachment upload & download.
 - **Audit log** — every API mutation recorded with a field-level diff,
   viewable in the backend.
+- **Error log tail** — the app can read the last N lines of the application
+  log (bounded reverse-tail, so large logs stay fast); gated by a setting.
 - **Backend UI** — Settings → Tailor Companion: App Connect (tokens + QR),
   Audit Log, and settings (API switch, token expiry, journal retention).
 
@@ -88,6 +90,7 @@ Base path: `/api/tailor-companion/v1`
 | `POST /files` | Upload an attachment |
 | `GET /files/{id}` | Download an attachment |
 | `GET /sites` | List sites + whether multisite is enabled |
+| `GET /logs` | Tail of the application error log (`?lines=`, gated by a setting) |
 
 On a multisite install, send `X-Tailor-Site: <site id>` (or `?site=`) with any
 content request to scope it to that site; without it the primary site is used.

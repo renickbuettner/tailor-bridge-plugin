@@ -17,3 +17,6 @@
     - "Serialize taglist options, custom-tags, use-key and separator config for clients"
 1.0.7:
     - "Add GET /records/{uuid}/{field} to search a recordfinder field's target model"
+1.0.8:
+    - "Add GET /logs returning the tail of the application log (bounded reverse-tail)"
+    - "Add logs_enabled setting to gate error-log access"
