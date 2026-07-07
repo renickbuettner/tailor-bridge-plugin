@@ -10,3 +10,10 @@
     - Add globals API (GET /globals/{uuid}) and global writes via sync/batch
 1.0.4:
     - Add multisite support with GET /sites and per-request site scoping via X-Tailor-Site
+1.0.5:
+    - "Fix rate limiting so pairing and API routes use separate throttle counters"
+1.0.6:
+    - "Fix multi recordfinder relations being truncated to a single id on read and write"
+    - "Serialize taglist options, custom-tags, use-key and separator config for clients"
+1.0.7:
+    - "Add GET /records/{uuid}/{field} to search a recordfinder field's target model"

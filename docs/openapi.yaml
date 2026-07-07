@@ -213,6 +213,58 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /records/{uuid}/{field}:
+    get:
+      tags: [Entries]
+      summary: Live search over a recordfinder field's target model
+      description: >-
+        A recordfinder field associates entries with a regular (non-Tailor)
+        model that the app never syncs. This endpoint searches that model so
+        the app can offer a picker. The model class is resolved server-side
+        from the field definition — the client only names the blueprint and
+        field. Results use the field's nameFrom column as the title.
+      parameters:
+        - $ref: "#/components/parameters/BlueprintUuid"
+        - in: path
+          name: field
+          required: true
+          schema: { type: string }
+          description: The recordfinder field's name.
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Search term matched against the display column.
+        - in: query
+          name: cursor
+          schema: { type: integer, default: 0 }
+          description: Last seen record id; page returns records with a greater id.
+        - in: query
+          name: per_page
+          schema: { type: integer, default: 25, maximum: 100 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        title: { type: string }
+                        description: { type: string, nullable: true }
+                  meta:
+                    type: object
+                    properties:
+                      has_more: { type: boolean }
+                      next_cursor: { type: integer, nullable: true }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /globals/{uuid}:
     get:
       tags: [Entries]

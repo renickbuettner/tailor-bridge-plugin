@@ -141,6 +141,64 @@ class ApiReadTest extends PluginTestCase
             ->assertJsonPath('error.code', 'unknown_entry');
     }
 
+    // -- /records/{uuid}/{field} (recordfinder picker) -------------------------
+
+    protected function sinkUuid(): string
+    {
+        return BlueprintIndexer::instance()->findSectionByHandle('Demo\KitchenSink')->uuid;
+    }
+
+    protected function makeUser(string $login): User
+    {
+        $user = new User;
+        $user->first_name = ucfirst($login);
+        $user->last_name = 'Finder';
+        $user->login = $login;
+        $user->email = $login . '@example.com';
+        $user->password = 'finder-pass-12345';
+        $user->password_confirmation = 'finder-pass-12345';
+        $user->save();
+        return $user;
+    }
+
+    public function testRecordsSearchReturnsMatchesWithNameFromTitle()
+    {
+        $this->makeUser('alice_finder');
+        $this->makeUser('bob_finder');
+
+        $uuid = $this->sinkUuid();
+        $response = $this->getJson(
+            "/api/tailor-companion/v1/records/{$uuid}/assigned_user?q=alice",
+            $this->authHeader
+        );
+
+        $response->assertStatus(200);
+        $titles = collect($response->json('data'))->pluck('title');
+        $this->assertTrue($titles->contains('alice_finder'));
+        $this->assertFalse($titles->contains('bob_finder'), 'Search must filter by login (nameFrom)');
+    }
+
+    public function testRecordsUnknownFieldIs404()
+    {
+        $uuid = $this->sinkUuid();
+        $this->getJson("/api/tailor-companion/v1/records/{$uuid}/subtitle", $this->authHeader)
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'unknown_recordfinder');
+    }
+
+    public function testRecordsUnknownBlueprintIs404()
+    {
+        $this->getJson('/api/tailor-companion/v1/records/00000000-0000-0000-0000-000000000000/assigned_user', $this->authHeader)
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'unknown_blueprint');
+    }
+
+    public function testRecordsRequireAuth()
+    {
+        $uuid = $this->sinkUuid();
+        $this->getJson("/api/tailor-companion/v1/records/{$uuid}/assigned_user")->assertStatus(401);
+    }
+
     // -- /sync/changes ---------------------------------------------------------------
 
     public function testChangesWithoutCursorSignalsFullPull()

@@ -299,8 +299,13 @@ class EntryWriter
     protected function applyRelation(\Tailor\Classes\BlueprintModel $entry, string $name, array $write): bool
     {
         $config = $write['field']->getConfig() ?: [];
-        $isSingular = (int) ($config['maxItems'] ?? 0) === 1
-            || $write['field'] instanceof \Tailor\ContentFields\RecordFinderField;
+
+        // Singular === maxItems 1 for both entries and recordfinder (belongsTo
+        // with a `<field>_id` column). A recordfinder with maxItems !== 1 is a
+        // real many-relation stored in tailor_content_joins — it must go
+        // through the sync() path below, not associate() (which only exists on
+        // BelongsTo and would fatal on a many-relation).
+        $isSingular = (int) ($config['maxItems'] ?? 0) === 1;
 
         if ($isSingular) {
             $newId = $write['value'] !== null ? (int) $write['value'] : null;

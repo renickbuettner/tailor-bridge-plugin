@@ -149,7 +149,7 @@ class SchemaSerializer
             'custom' => $custom,
             'implicit' => false,
             // Empty PHP arrays JSON-encode as [] — clients expect an object
-            'config' => $this->normalizeFieldConfig($kind, $config) ?: new \stdClass,
+            'config' => $this->normalizeFieldConfig($kind, (string) $field->type, $config) ?: new \stdClass,
         ];
     }
 
@@ -180,13 +180,37 @@ class SchemaSerializer
     /**
      * normalizeFieldConfig extracts the kind-relevant extras the app needs.
      */
-    protected function normalizeFieldConfig(string $kind, array $config): array
+    protected function normalizeFieldConfig(string $kind, string $type, array $config): array
     {
         $result = [];
 
-        // Static options (dropdown, radio, checkboxlist, balloon-selector)
+        // Static options (dropdown, radio, checkboxlist, balloon-selector,
+        // taglist). Taglist accepts a sequential list (`options: [Red, Blue]`)
+        // as well as a key=>label map — normalize the list form to a map so
+        // the app always sees the same {key: label} shape.
         if (isset($config['options']) && is_array($config['options'])) {
-            $result['options'] = $config['options'];
+            $options = $config['options'];
+            if (array_is_list($options)) {
+                $options = array_combine($options, $options);
+            }
+            $result['options'] = $options;
+        }
+
+        // Taglist (json kind): the app needs the input constraints to mirror
+        // the backend widget — whether free tags are allowed, whether values
+        // are stored as option keys, and the item cap.
+        if ($type === 'taglist') {
+            $result['custom_tags'] = (bool) ($config['customTags'] ?? false);
+            // useKey defaults to true in the widget, but custom tags force it
+            // off (keys can't be used with free-form values).
+            $useKey = array_key_exists('useKey', $config) ? (bool) $config['useKey'] : true;
+            $result['use_key'] = ($result['custom_tags']) ? false : $useKey;
+            if (isset($config['maxItems'])) {
+                $result['max_items'] = (int) $config['maxItems'];
+            }
+            if (isset($config['separator'])) {
+                $result['separator'] = (string) $config['separator'];
+            }
         }
 
         switch ($kind) {

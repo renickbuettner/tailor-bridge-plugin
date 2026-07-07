@@ -130,6 +130,50 @@ class SchemaSerializerTest extends PluginTestCase
         $this->assertSame('acme_fancy_widget', $custom['type']);
     }
 
+    public function testTaglistConfigIsSerialized()
+    {
+        $schema = $this->serializer->serialize();
+        $sink = $this->findSerialized($schema, 'Demo\KitchenSink');
+
+        // Free-entry taglist (no options): custom flags present, no options key
+        $keywords = $this->findField($sink, 'keywords');
+        $this->assertSame('json', $keywords['kind']);
+        $this->assertSame('taglist', $keywords['type']);
+        $this->assertArrayNotHasKey('options', $keywords['config']);
+        $this->assertFalse($keywords['config']['custom_tags']);
+        $this->assertTrue($keywords['config']['use_key']);
+
+        // Option-backed taglist: options normalized to key=>label, useKey true
+        $priorities = $this->findField($sink, 'priorities');
+        $this->assertSame(
+            ['low' => 'Low', 'medium' => 'Medium', 'high' => 'High'],
+            $priorities['config']['options']
+        );
+        $this->assertFalse($priorities['config']['custom_tags']);
+        $this->assertTrue($priorities['config']['use_key']);
+    }
+
+    public function testRecordFinderConfigIsSerialized()
+    {
+        $schema = $this->serializer->serialize();
+        $sink = $this->findSerialized($schema, 'Demo\KitchenSink');
+
+        // Singular recordfinder → relation kind, max_items 1, model_class set,
+        // no source_uuid (target is a regular model, not a Tailor section).
+        $assigned = $this->findField($sink, 'assigned_user');
+        $this->assertSame('relation', $assigned['kind']);
+        $this->assertSame('recordfinder', $assigned['type']);
+        $this->assertSame(1, $assigned['config']['max_items']);
+        $this->assertSame('Backend\Models\User', $assigned['config']['model_class']);
+        $this->assertArrayNotHasKey('source_uuid', $assigned['config']);
+
+        // Multi recordfinder → max_items null (no cap)
+        $reviewers = $this->findField($sink, 'reviewers');
+        $this->assertSame('relation', $reviewers['kind']);
+        $this->assertNull($reviewers['config']['max_items']);
+        $this->assertSame('Backend\Models\User', $reviewers['config']['model_class']);
+    }
+
     public function testRepeaterSubFieldsAreSerialized()
     {
         $schema = $this->serializer->serialize();

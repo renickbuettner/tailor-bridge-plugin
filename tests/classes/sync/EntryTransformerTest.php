@@ -151,6 +151,62 @@ class EntryTransformerTest extends PluginTestCase
         $this->assertArrayNotHasKey('content_value', $steps[0]);
     }
 
+    protected function makeUser(string $login): \Backend\Models\User
+    {
+        $user = new \Backend\Models\User;
+        $user->first_name = ucfirst($login);
+        $user->last_name = 'Tester';
+        $user->login = $login;
+        $user->email = $login . '@example.com';
+        $user->password = 'record-pass-12345';
+        $user->password_confirmation = 'record-pass-12345';
+        $user->save();
+        return $user;
+    }
+
+    public function testRecordFinderSingularYieldsIdAndNameFromLabel()
+    {
+        $user = $this->makeUser('rf_singular');
+
+        $sink = EntryRecord::inSection('Demo\KitchenSink');
+        $sink->title = 'RF Singular';
+        $sink->slug = 'rf-singular';
+        $sink->assigned_user = $user->id;
+        $sink->save();
+
+        $wire = $this->transformer->transform($sink->fresh());
+
+        // Singular recordfinder → plain id + label using nameFrom (login)
+        $this->assertSame((int) $user->id, $wire['fields']['assigned_user']);
+        $this->assertSame('rf_singular', $wire['relation_labels']['assigned_user'][0]['title']);
+    }
+
+    public function testRecordFinderMultiYieldsIdArray()
+    {
+        // Regression: a multi recordfinder (maxItems unset → morphedByMany)
+        // was truncated to a single id because the transformer special-cased
+        // the RecordFinderField class instead of branching on maxItems.
+        $userA = $this->makeUser('rf_multi_a');
+        $userB = $this->makeUser('rf_multi_b');
+
+        $sink = EntryRecord::inSection('Demo\KitchenSink');
+        $sink->title = 'RF Multi';
+        $sink->slug = 'rf-multi';
+        $sink->save();
+        $sink->reviewers()->add($userA);
+        $sink->reviewers()->add($userB);
+
+        $wire = $this->transformer->transform($sink->fresh());
+
+        $this->assertIsArray($wire['fields']['reviewers']);
+        $this->assertEqualsCanonicalizing(
+            [(int) $userA->id, (int) $userB->id],
+            $wire['fields']['reviewers']
+        );
+        $labels = collect($wire['relation_labels']['reviewers'])->pluck('title')->all();
+        $this->assertEqualsCanonicalizing(['rf_multi_a', 'rf_multi_b'], $labels);
+    }
+
     public function testEmptyRelationsAndNested()
     {
         $sink = EntryRecord::inSection('Demo\KitchenSink');

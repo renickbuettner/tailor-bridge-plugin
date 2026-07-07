@@ -135,15 +135,21 @@ class EntryTransformer
     protected function transformRelation(\Tailor\Classes\BlueprintModel $entry, string $name, $field): array
     {
         $config = $field->getConfig() ?: [];
+
+        // Singular is defined by maxItems === 1, for BOTH entries and
+        // recordfinder fields (Tailor makes maxItems=1 a belongsTo with a
+        // `<field>_id` column; otherwise a many-relation). A recordfinder
+        // with maxItems !== 1 is a genuine multi relation and MUST read as a
+        // collection — special-casing the class here silently truncated
+        // multi recordfinders to a single id.
         $isSingular = (int) ($config['maxItems'] ?? 0) === 1;
 
-        // recordfinder singular: plain foreign key column
-        if ($field instanceof \Tailor\ContentFields\RecordFinderField || $isSingular) {
+        if ($isSingular) {
             $id = $entry->{$name . '_id'} ?? optional($entry->{$name})->id;
             $related = $entry->{$name};
 
             $labels = $related
-                ? [['id' => (int) $related->getKey(), 'title' => (string) ($related->title ?? $related->name ?? $related->getKey())]]
+                ? [['id' => (int) $related->getKey(), 'title' => $this->relationLabelText($related, $field)]]
                 : null;
 
             return [$id !== null ? (int) $id : null, $labels];
@@ -159,10 +165,29 @@ class EntryTransformer
         $labels = [];
         foreach ($records as $record) {
             $ids[] = (int) $record->getKey();
-            $labels[] = ['id' => (int) $record->getKey(), 'title' => (string) $record->title];
+            $labels[] = ['id' => (int) $record->getKey(), 'title' => $this->relationLabelText($record, $field)];
         }
 
         return [$ids, $labels ?: null];
+    }
+
+    /**
+     * relationLabelText picks a human label for a related record. Recordfinder
+     * targets are arbitrary models that may not have a `title` (e.g. a User
+     * has `login`), so honour the field's `nameFrom` and fall back through
+     * title → name → primary key. Entries relations leave nameFrom unset and
+     * naturally resolve to `title`.
+     */
+    protected function relationLabelText($record, $field): string
+    {
+        $config = $field->getConfig() ?: [];
+        $nameFrom = $config['nameFrom'] ?? null;
+
+        if ($nameFrom && ($record->{$nameFrom} ?? null) !== null) {
+            return (string) $record->{$nameFrom};
+        }
+
+        return (string) ($record->title ?? $record->name ?? $record->getKey());
     }
 
     /**

@@ -209,6 +209,92 @@ class EntryWriterTest extends PluginTestCase
         $this->assertNotSame($before, $result['entry']['updated_at'], 'updated_at must change on relation-only update');
     }
 
+    // -- recordfinder + taglist -------------------------------------------------
+
+    protected function makeUser(string $login): \Backend\Models\User
+    {
+        $user = new \Backend\Models\User;
+        $user->first_name = ucfirst($login);
+        $user->last_name = 'Tester';
+        $user->login = $login;
+        $user->email = $login . '@example.com';
+        $user->password = 'record-pass-12345';
+        $user->password_confirmation = 'record-pass-12345';
+        $user->save();
+        return $user;
+    }
+
+    public function testRecordFinderSingularWrite()
+    {
+        $user = $this->makeUser('rf_writer');
+
+        $created = $this->writer->apply([
+            'op' => 'create',
+            'blueprint_uuid' => $this->sinkUuid,
+            'fields' => ['title' => 'RF Write', 'assigned_user' => $user->id],
+        ]);
+
+        $this->assertSame('ok', $created['status']);
+        $this->assertSame((int) $user->id, $created['entry']['fields']['assigned_user']);
+
+        $fresh = EntryRecord::inSectionUuid($this->sinkUuid)->where('id', $created['id'])->first();
+        $this->assertSame((int) $user->id, (int) $fresh->assigned_user_id);
+
+        // Clearing the singular relation
+        $cleared = $this->writer->apply([
+            'op' => 'update',
+            'blueprint_uuid' => $this->sinkUuid,
+            'id' => $created['id'],
+            'base_updated_at' => $created['entry']['updated_at'],
+            'fields' => ['assigned_user' => null],
+        ]);
+        $this->assertSame('ok', $cleared['status']);
+        $this->assertNull($cleared['entry']['fields']['assigned_user']);
+    }
+
+    public function testRecordFinderMultiWrite()
+    {
+        // Regression: a multi recordfinder must sync() through the join table,
+        // not associate() (which only exists on the singular belongsTo).
+        $userA = $this->makeUser('rf_w_a');
+        $userB = $this->makeUser('rf_w_b');
+
+        $created = $this->writer->apply([
+            'op' => 'create',
+            'blueprint_uuid' => $this->sinkUuid,
+            'fields' => ['title' => 'RF Multi Write', 'reviewers' => [$userA->id, $userB->id]],
+        ]);
+
+        $this->assertSame('ok', $created['status']);
+        $this->assertEqualsCanonicalizing(
+            [(int) $userA->id, (int) $userB->id],
+            $created['entry']['fields']['reviewers']
+        );
+
+        // Reduce to one reviewer
+        $updated = $this->writer->apply([
+            'op' => 'update',
+            'blueprint_uuid' => $this->sinkUuid,
+            'id' => $created['id'],
+            'base_updated_at' => $created['entry']['updated_at'],
+            'fields' => ['reviewers' => [$userA->id]],
+        ]);
+        $this->assertSame('ok', $updated['status']);
+        $this->assertSame([(int) $userA->id], $updated['entry']['fields']['reviewers']);
+    }
+
+    public function testTaglistWithOptionsRoundTripsKeys()
+    {
+        $created = $this->writer->apply([
+            'op' => 'create',
+            'blueprint_uuid' => $this->sinkUuid,
+            'fields' => ['title' => 'Taglist Write', 'priorities' => ['low', 'high']],
+        ]);
+
+        $this->assertSame('ok', $created['status']);
+        $this->assertSame(['low', 'high'], $created['entry']['fields']['priorities']);
+    }
+
     // -- delete -----------------------------------------------------------------
 
     public function testDeleteAndIdempotency()

@@ -17,6 +17,9 @@ incrementally, and logs all mutations to an audit trail.
   normalized structure with per-blueprint fingerprints for change detection.
 - **Entry API** — cursor-paginated reads of canonical (published) entries,
   every core Tailor field type mapped to a clean JSON shape.
+- **Recordfinder search** — live search over the regular model a
+  `recordfinder` field targets, resolved server-side from the blueprint so
+  clients can offer a picker without syncing that model.
 - **Incremental sync** — a change journal with a monotonic cursor captures
   create/update/delete from any source (API, backend, console), including
   hard deletes.
@@ -78,6 +81,7 @@ Base path: `/api/tailor-companion/v1`
 | `GET /schema` | All blueprints + normalized fields (ETag) |
 | `GET /entries/{uuid}` | Cursor-paginated entries of a blueprint |
 | `GET /entries/{uuid}/{id}` | A single entry |
+| `GET /records/{uuid}/{field}` | Search a `recordfinder` field's target model (`?q=`) |
 | `GET /globals/{uuid}` | The single record of a global blueprint |
 | `GET /sync/changes` | Incremental change journal since a cursor |
 | `POST /sync/batch` | Apply create/update/delete operations |
