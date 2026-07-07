@@ -1,6 +1,7 @@
 <?php namespace Renick\TailorCompanion\Classes\Api;
 
 use Illuminate\Http\Request;
+use Renick\TailorCompanion\Classes\Middleware\SiteContext;
 use Renick\TailorCompanion\Classes\Sync\ChangeJournal;
 use Renick\TailorCompanion\Models\JournalEntry;
 use Response;
@@ -38,7 +39,8 @@ class ChangesController
             ], 410);
         }
 
-        $result = $journal->changesSince($since);
+        $siteId = $request->attributes->get(SiteContext::REQUEST_SITE_KEY);
+        $result = $journal->changesSince($since, $siteId !== null ? (int) $siteId : null);
 
         return Response::json([
             'data' => $result['changes'],

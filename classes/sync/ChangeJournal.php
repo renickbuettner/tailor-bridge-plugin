@@ -75,10 +75,10 @@ class ChangeJournal
      * isCanonical — only published, non-version rows are sync-relevant.
      * Draft/version churn must not reach the app.
      *
-     * Multisite: propagation saves sibling-site rows, firing model events for
-     * each. Those rows are canonical but belong to other sites the API scopes
-     * away, so journaling them would flood the app with un-fetchable ids. Only
-     * journal rows for the primary site.
+     * Multisite: rows are journaled for every site (the row carries its
+     * site_id). Clients pull changes filtered to their selected site, so
+     * multisite propagation lands in the right per-site stream instead of
+     * being dropped.
      */
     public function isCanonical(EntryRecord $model): bool
     {
@@ -91,34 +91,7 @@ class ChangeJournal
             return false;
         }
 
-        if (!$this->isPrimarySite($model)) {
-            return false;
-        }
-
         return true;
-    }
-
-    /**
-     * isPrimarySite returns true for single-site installs, or when the row
-     * belongs to the primary site on a multisite install.
-     */
-    protected function isPrimarySite(EntryRecord $model): bool
-    {
-        if ($model->site_id === null) {
-            return true;
-        }
-
-        try {
-            $manager = \System\Classes\SiteManager::instance();
-            if (!$manager->hasMultiSite()) {
-                return true;
-            }
-            $primary = $manager->getPrimarySite();
-            return $primary === null || (int) $model->site_id === (int) $primary->id;
-        }
-        catch (\Throwable $ex) {
-            return true;
-        }
     }
 
     /**
@@ -131,9 +104,15 @@ class ChangeJournal
      *
      * @return array{changes: array, latest_cursor: int, has_more: bool}
      */
-    public function changesSince(int $cursor, int $limit = 5000): array
+    public function changesSince(int $cursor, ?int $siteId = null, int $limit = 5000): array
     {
         $rows = JournalEntry::where('id', '>', $cursor)
+            ->when($siteId !== null, function ($q) use ($siteId) {
+                // Include rows for this site, plus site-agnostic rows (null)
+                $q->where(function ($sub) use ($siteId) {
+                    $sub->where('site_id', $siteId)->orWhereNull('site_id');
+                });
+            })
             ->orderBy('id')
             ->limit($limit)
             ->get();

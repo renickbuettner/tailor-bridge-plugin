@@ -57,12 +57,17 @@ class EntryWriter
         }
 
         $uuid = (string) ($op['blueprint_uuid'] ?? '');
-        if (!BlueprintIndexer::instance()->findSection($uuid)) {
+        $isGlobal = BlueprintIndexer::instance()->findGlobal($uuid) !== null;
+        $isSection = BlueprintIndexer::instance()->findSection($uuid) !== null;
+        if (!$isGlobal && !$isSection) {
             return $this->errorResult($op, ['blueprint_uuid' => ['Unknown blueprint.']]);
         }
 
         try {
-            return Db::transaction(function () use ($type, $op, $uuid, $token) {
+            return Db::transaction(function () use ($type, $op, $uuid, $token, $isGlobal) {
+                if ($isGlobal) {
+                    return $this->applyGlobalUpdate($op, $uuid, $token);
+                }
                 return match ($type) {
                     'create' => $this->applyCreate($op, $uuid, $token),
                     'update' => $this->applyUpdate($op, $uuid, $token),
@@ -163,6 +168,35 @@ class EntryWriter
             'id' => $id, 'warnings' => []];
     }
 
+    /**
+     * applyGlobalUpdate writes the single record of a global blueprint. Globals
+     * always exist (findForGlobalUuid creates on demand) and carry no
+     * title/slug/publishing — only field values. Only "update" is meaningful.
+     */
+    protected function applyGlobalUpdate(array $op, string $uuid, ?AccessToken $token): array
+    {
+        $global = \Tailor\Models\GlobalRecord::findForGlobalUuid($uuid);
+
+        $plan = $this->planFieldWrites($global, (array) ($op['fields'] ?? []), true);
+
+        $this->applyScalars($global, $plan['scalars']);
+        $global->save();
+
+        $this->applyRelationsAndNested($global, $plan);
+
+        $this->audit('update', $global, $token, $this->diffForCreate($plan));
+
+        $fresh = \Tailor\Models\GlobalRecord::findForGlobalUuid($uuid);
+        return [
+            'status' => 'ok',
+            'op' => $op['op'],
+            'local_id' => $op['local_id'] ?? null,
+            'id' => (int) $global->getKey(),
+            'entry' => $this->transformer->transformGlobal($fresh),
+            'warnings' => $plan['warnings'],
+        ];
+    }
+
     // -- Field planning --------------------------------------------------------
 
     /**
@@ -170,7 +204,7 @@ class EntryWriter
      *
      * @return array{scalars: array, relations: array, attachments: array, nested: array, warnings: array}
      */
-    protected function planFieldWrites(EntryRecord $entry, array $fields): array
+    protected function planFieldWrites(\Tailor\Classes\BlueprintModel $entry, array $fields, bool $isGlobal = false): array
     {
         $plan = ['scalars' => [], 'relations' => [], 'attachments' => [], 'nested' => [], 'warnings' => []];
 
@@ -201,6 +235,18 @@ class EntryWriter
 
             $kind = $this->registry->kindFor($field);
 
+            // Tailor stores relation/repeater values on globals in ways that
+            // are not reliably writable via the API (relations can't serialise
+            // into the JSON content column; global repeater tables lack the
+            // multisite columns). These fields on globals are returned as
+            // warnings so the value is never lost, and stay editable in the
+            // backend. Scalars, colours, media and tags write normally.
+            if ($isGlobal && ($kind === 'relation' || $kind === 'nested')) {
+                $plan['warnings'][] = $this->warning($name, 'unsupported_on_global',
+                    'This field type cannot be edited on globals via the API.', $value);
+                continue;
+            }
+
             switch ($kind) {
                 case 'relation':
                     $plan['relations'][$name] = ['field' => $field, 'value' => $value];
@@ -220,7 +266,7 @@ class EntryWriter
         return $plan;
     }
 
-    protected function applyScalars(EntryRecord $entry, array $scalars): void
+    protected function applyScalars(\Tailor\Classes\BlueprintModel $entry, array $scalars): void
     {
         foreach ($scalars as $name => $value) {
             $entry->{$name} = $value;
@@ -231,7 +277,7 @@ class EntryWriter
      * applyRelationsAndNested runs after save (needs the record id).
      * Returns true when anything changed.
      */
-    protected function applyRelationsAndNested(EntryRecord $entry, array $plan): bool
+    protected function applyRelationsAndNested(\Tailor\Classes\BlueprintModel $entry, array $plan): bool
     {
         $changed = false;
 
@@ -250,7 +296,7 @@ class EntryWriter
         return $changed;
     }
 
-    protected function applyRelation(EntryRecord $entry, string $name, array $write): bool
+    protected function applyRelation(\Tailor\Classes\BlueprintModel $entry, string $name, array $write): bool
     {
         $config = $write['field']->getConfig() ?: [];
         $isSingular = (int) ($config['maxItems'] ?? 0) === 1
@@ -258,11 +304,19 @@ class EntryWriter
 
         if ($isSingular) {
             $newId = $write['value'] !== null ? (int) $write['value'] : null;
-            $current = $entry->{$name . '_id'} ?? null;
+            $current = $entry->{$name . '_id'} ?? optional($entry->{$name})->getKey();
             if ((int) $current === (int) $newId && ($current === null) === ($newId === null)) {
                 return false;
             }
-            $entry->{$name} = $newId;
+            // Use the BelongsTo relation API (associate/dissociate) rather than
+            // setting the attribute — the latter corrupts globals, whose fields
+            // live in a JSON content column.
+            $relation = $entry->{$name}();
+            if ($newId === null) {
+                $relation->dissociate();
+            } else {
+                $relation->associate($newId);
+            }
             $entry->save();
             return true;
         }
@@ -291,7 +345,7 @@ class EntryWriter
      * owned by other records or plugins, and a later removal would delete
      * them. Files already attached to THIS entry+field are fine (no-op keep).
      */
-    protected function applyAttachments(EntryRecord $entry, string $name, array $write): bool
+    protected function applyAttachments(\Tailor\Classes\BlueprintModel $entry, string $name, array $write): bool
     {
         $config = $write['field']->getConfig() ?: [];
         $isSingle = (int) ($config['maxFiles'] ?? 0) === 1;
@@ -373,7 +427,7 @@ class EntryWriter
      * semantics): items with _id are updated, new items created, missing
      * items deleted; array order defines sort_order.
      */
-    protected function applyNested(EntryRecord $entry, string $name, array $items): bool
+    protected function applyNested(\Tailor\Classes\BlueprintModel $entry, string $name, array $items): bool
     {
         $existing = $entry->{$name};
         $existingById = [];
@@ -507,7 +561,7 @@ class EntryWriter
 
     // -- Audit & diffs ---------------------------------------------------------------
 
-    protected function audit(string $action, EntryRecord $entry, ?AccessToken $token, array $changes, ?int $recordId = null): void
+    protected function audit(string $action, \Tailor\Classes\BlueprintModel $entry, ?AccessToken $token, array $changes, ?int $recordId = null): void
     {
         AuditLog::record($action, [
             'token_id' => $token?->id,

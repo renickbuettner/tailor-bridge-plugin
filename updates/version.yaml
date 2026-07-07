@@ -6,3 +6,7 @@
 1.0.2:
     - Add plugin state table (journal prune high-water mark)
     - create_state_table.php
+1.0.3:
+    - Add globals API (GET /globals/{uuid}) and global writes via sync/batch
+1.0.4:
+    - Add multisite support with GET /sites and per-request site scoping via X-Tailor-Site

@@ -71,6 +71,33 @@ paths:
         "422": { $ref: "#/components/responses/ValidationError" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
 
+  /sites:
+    get:
+      tags: [Auth]
+      summary: List OctoberCMS sites
+      description: >-
+        The sites the client can switch between. Send the chosen site as an
+        `X-Tailor-Site: <id>` header on all content endpoints; without it the
+        primary site is used. Single-site installs report one site with
+        `multisite: false`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Site" }
+                  meta:
+                    type: object
+                    properties:
+                      multisite: { type: boolean }
+                      primary_site_id: { type: integer, nullable: true }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /ping:
     get:
       tags: [Auth]
@@ -174,6 +201,27 @@ paths:
           name: id
           required: true
           schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Entry" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /globals/{uuid}:
+    get:
+      tags: [Entries]
+      summary: The single record of a global blueprint
+      description: >-
+        Globals have exactly one record — there is no list. Relation and
+        repeater fields on globals are read-only via the API.
+      parameters:
+        - $ref: "#/components/parameters/BlueprintUuid"
       responses:
         "200":
           description: OK
@@ -435,6 +483,7 @@ components:
       properties:
         id: { type: integer }
         blueprint_uuid: { type: string, format: uuid }
+        is_global: { type: boolean, description: "True for a global blueprint's single record." }
         content_group: { type: string, nullable: true }
         title: { type: string, nullable: true }
         slug: { type: string, nullable: true }
@@ -526,3 +575,13 @@ components:
         size: { type: integer }
         content_type: { type: string }
         url: { type: string, format: uri }
+
+    Site:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        code: { type: string }
+        locale: { type: string }
+        is_primary: { type: boolean }
+        is_enabled: { type: boolean }

@@ -31,44 +31,7 @@ class EntryTransformer
      */
     public function transform(EntryRecord $entry): array
     {
-        $fields = [];
-        $relationLabels = [];
-
-        $fieldset = BlueprintIndexer::instance()->findContentFieldset((string) $entry->blueprint_uuid);
-
-        if ($fieldset) {
-            foreach ($fieldset->getAllFields() as $name => $field) {
-                $name = (string) $name;
-
-                if ($this->registry->isMixin($field) || str_starts_with($name, '_')) {
-                    continue;
-                }
-
-                $kind = $this->registry->kindFor($field);
-
-                switch ($kind) {
-                    case 'relation':
-                        [$value, $labels] = $this->transformRelation($entry, $name, $field);
-                        $fields[$name] = $value;
-                        if ($labels !== null) {
-                            $relationLabels[$name] = $labels;
-                        }
-                        break;
-
-                    case 'attachment':
-                        $fields[$name] = $this->transformAttachments($entry, $name, $field);
-                        break;
-
-                    case 'nested':
-                        $fields[$name] = $this->transformNested($entry, $name);
-                        break;
-
-                    default: // scalar, json, media, unknown
-                        $fields[$name] = $this->presentValue($entry->{$name});
-                        break;
-                }
-            }
-        }
+        [$fields, $relationLabels] = $this->serializeFields($entry);
 
         return [
             'id' => (int) $entry->getKey(),
@@ -84,7 +47,84 @@ class EntryTransformer
             'updated_at' => $this->presentValue($entry->updated_at),
             'fields' => $fields,
             'relation_labels' => $relationLabels ?: (object) [],
+            'is_global' => false,
         ];
+    }
+
+    /**
+     * transformGlobal serializes a Tailor global's single record. Globals have
+     * no title/slug/publishing columns — just field values.
+     */
+    public function transformGlobal(\Tailor\Models\GlobalRecord $global): array
+    {
+        [$fields, $relationLabels] = $this->serializeFields($global);
+
+        $blueprint = BlueprintIndexer::instance()->findGlobal((string) $global->blueprint_uuid);
+
+        return [
+            'id' => (int) $global->getKey(),
+            'blueprint_uuid' => (string) $global->blueprint_uuid,
+            'content_group' => null,
+            'title' => $blueprint ? (string) $blueprint->name : null,
+            'slug' => null,
+            'is_enabled' => true,
+            'published_at' => null,
+            'expired_at' => null,
+            'site_id' => $global->site_id ?? null,
+            'created_at' => $this->presentValue($global->created_at),
+            'updated_at' => $this->presentValue($global->updated_at),
+            'fields' => $fields,
+            'relation_labels' => $relationLabels ?: (object) [],
+            'is_global' => true,
+        ];
+    }
+
+    /**
+     * serializeFields runs the shared field loop over any blueprint model
+     * (entry or global). Returns [fields, relationLabels].
+     */
+    protected function serializeFields(\Tailor\Classes\BlueprintModel $model): array
+    {
+        $fields = [];
+        $relationLabels = [];
+
+        $fieldset = BlueprintIndexer::instance()->findContentFieldset((string) $model->blueprint_uuid);
+
+        if ($fieldset) {
+            foreach ($fieldset->getAllFields() as $name => $field) {
+                $name = (string) $name;
+
+                if ($this->registry->isMixin($field) || str_starts_with($name, '_')) {
+                    continue;
+                }
+
+                $kind = $this->registry->kindFor($field);
+
+                switch ($kind) {
+                    case 'relation':
+                        [$value, $labels] = $this->transformRelation($model, $name, $field);
+                        $fields[$name] = $value;
+                        if ($labels !== null) {
+                            $relationLabels[$name] = $labels;
+                        }
+                        break;
+
+                    case 'attachment':
+                        $fields[$name] = $this->transformAttachments($model, $name, $field);
+                        break;
+
+                    case 'nested':
+                        $fields[$name] = $this->transformNested($model, $name);
+                        break;
+
+                    default: // scalar, json, media, unknown
+                        $fields[$name] = $this->presentValue($model->{$name});
+                        break;
+                }
+            }
+        }
+
+        return [$fields, $relationLabels];
     }
 
     /**
@@ -92,7 +132,7 @@ class EntryTransformer
      *
      * @return array{0: mixed, 1: ?array}
      */
-    protected function transformRelation(EntryRecord $entry, string $name, $field): array
+    protected function transformRelation(\Tailor\Classes\BlueprintModel $entry, string $name, $field): array
     {
         $config = $field->getConfig() ?: [];
         $isSingular = (int) ($config['maxItems'] ?? 0) === 1;
@@ -128,7 +168,7 @@ class EntryTransformer
     /**
      * transformAttachments serializes fileupload attachments.
      */
-    protected function transformAttachments(EntryRecord $entry, string $name, $field): array
+    protected function transformAttachments(\Tailor\Classes\BlueprintModel $entry, string $name, $field): array
     {
         $config = $field->getConfig() ?: [];
         $isSingle = (int) ($config['maxFiles'] ?? 0) === 1;
@@ -157,7 +197,7 @@ class EntryTransformer
      * values live in the ExpandoModel's content_value blob — after fetch they
      * are merged into the attributes, so we take attributes minus internals.
      */
-    protected function transformNested(EntryRecord $entry, string $name): array
+    protected function transformNested(\Tailor\Classes\BlueprintModel $entry, string $name): array
     {
         $value = $entry->{$name};
         if (!$value) {
