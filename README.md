@@ -22,6 +22,10 @@ incrementally, and logs all mutations to an audit trail.
   hard deletes.
 - **Batched writes** — create/update/delete with optimistic-concurrency
   conflict handling; blueprint validation always runs.
+- **Globals** — read a global's single record and update its fields through
+  the same batch endpoint.
+- **Multisite** — list sites and scope any request to one site via the
+  `X-Tailor-Site` header; the change journal is tracked per site.
 - **File uploads** — scoped, validated attachment upload & download.
 - **Audit log** — every API mutation recorded with a field-level diff,
   viewable in the backend.
@@ -37,8 +41,18 @@ incrementally, and logs all mutations to an audit trail.
 
 ## Installation
 
+Via Composer, using this repository as a VCS source:
+
 ```bash
-composer require renick/tailorcompanion-plugin
+composer config repositories.tailorcompanion vcs https://github.com/renickbuettner/tailor-bridge-plugin
+composer require renick/tailorcompanion-plugin:dev-main
+php artisan october:migrate
+```
+
+Or clone it directly into your plugins directory:
+
+```bash
+git clone https://github.com/renickbuettner/tailor-bridge-plugin plugins/renick/tailorcompanion
 php artisan october:migrate
 ```
 
@@ -64,10 +78,15 @@ Base path: `/api/tailor-companion/v1`
 | `GET /schema` | All blueprints + normalized fields (ETag) |
 | `GET /entries/{uuid}` | Cursor-paginated entries of a blueprint |
 | `GET /entries/{uuid}/{id}` | A single entry |
+| `GET /globals/{uuid}` | The single record of a global blueprint |
 | `GET /sync/changes` | Incremental change journal since a cursor |
 | `POST /sync/batch` | Apply create/update/delete operations |
 | `POST /files` | Upload an attachment |
 | `GET /files/{id}` | Download an attachment |
+| `GET /sites` | List sites + whether multisite is enabled |
+
+On a multisite install, send `X-Tailor-Site: <site id>` (or `?site=`) with any
+content request to scope it to that site; without it the primary site is used.
 
 The full contract — request/response schemas, error codes, field mapping — is
 in [`docs/openapi.yaml`](docs/openapi.yaml) (OpenAPI 3.0). Rendered docs are
