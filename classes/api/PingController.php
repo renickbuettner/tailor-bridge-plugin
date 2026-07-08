@@ -33,14 +33,35 @@ class PingController
                 'server_time' => Date::now()->toIso8601String(),
                 // Optional capabilities — clients treat a missing key as "off"
                 'features' => [
-                    'static_pages' => PagesFeature::isAvailable()
-                        ? [
-                            'available' => true,
-                            'schema_version' => (new LayoutSchemaSerializer)->schemaVersion(),
-                        ]
-                        : ['available' => false, 'schema_version' => null],
+                    'static_pages' => $this->staticPagesFeature(),
                 ],
             ],
         ]);
+    }
+
+    /**
+     * staticPagesFeature reports the optional RainLab.Pages capability.
+     *
+     * /ping is called at the start of every sync, so it must NEVER fail because
+     * of an optional feature: any error introspecting static pages (e.g. no
+     * resolvable active theme, a broken layout, a RainLab version mismatch)
+     * degrades to "unavailable" instead of taking the whole endpoint — and thus
+     * the whole app — down with a 500.
+     */
+    protected function staticPagesFeature(): array
+    {
+        try {
+            if (!PagesFeature::isAvailable()) {
+                return ['available' => false, 'schema_version' => null];
+            }
+
+            return [
+                'available' => true,
+                'schema_version' => (new LayoutSchemaSerializer)->schemaVersion(),
+            ];
+        }
+        catch (\Throwable $ex) {
+            return ['available' => false, 'schema_version' => null];
+        }
     }
 }

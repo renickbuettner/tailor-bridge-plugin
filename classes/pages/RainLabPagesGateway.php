@@ -17,9 +17,14 @@ class RainLabPagesGateway implements PagesGateway
      */
     public function layouts(): array
     {
+        $theme = $this->theme();
+        if (!$theme) {
+            return [];
+        }
+
         $result = [];
 
-        foreach (Layout::listInTheme($this->theme(), true) as $layout) {
+        foreach (Layout::listInTheme($theme, true) as $layout) {
             if (!$layout->hasComponent('staticPage')) {
                 continue;
             }
@@ -42,7 +47,12 @@ class RainLabPagesGateway implements PagesGateway
      */
     public function tree(): array
     {
-        $pageList = new \RainLab\Pages\Classes\PageList($this->theme());
+        $theme = $this->theme();
+        if (!$theme) {
+            return [];
+        }
+
+        $pageList = new \RainLab\Pages\Classes\PageList($theme);
 
         $mapNodes = function (array $nodes) use (&$mapNodes) {
             $result = [];
@@ -105,9 +115,14 @@ class RainLabPagesGateway implements PagesGateway
      */
     public function menus(): array
     {
+        $theme = $this->theme();
+        if (!$theme) {
+            return [];
+        }
+
         $result = [];
 
-        foreach (\RainLab\Pages\Classes\Menu::listInTheme($this->theme(), true) as $menu) {
+        foreach (\RainLab\Pages\Classes\Menu::listInTheme($theme, true) as $menu) {
             $result[] = [
                 'code' => $menu->getBaseFileName(),
                 'name' => $menu->name ?: null,
@@ -123,7 +138,12 @@ class RainLabPagesGateway implements PagesGateway
      */
     public function menu(string $code): ?array
     {
-        $menu = \RainLab\Pages\Classes\Menu::load($this->theme(), $code . '.yaml');
+        $theme = $this->theme();
+        if (!$theme) {
+            return null;
+        }
+
+        $menu = \RainLab\Pages\Classes\Menu::load($theme, $code . '.yaml');
 
         if (!$menu) {
             return null;
@@ -143,7 +163,12 @@ class RainLabPagesGateway implements PagesGateway
      */
     protected function loadPage(string $fileName): ?\RainLab\Pages\Classes\Page
     {
-        return \RainLab\Pages\Classes\Page::load($this->theme(), $fileName . '.htm');
+        $theme = $this->theme();
+        if (!$theme) {
+            return null;
+        }
+
+        return \RainLab\Pages\Classes\Page::load($theme, $fileName . '.htm');
     }
 
     /**
@@ -174,10 +199,14 @@ class RainLabPagesGateway implements PagesGateway
     }
 
     /**
-     * theme returns the active theme for the current request.
+     * theme resolves the theme static pages live in, or null when none can be
+     * resolved. `getActiveTheme()` can be null in an API request context (no
+     * CMS route bootstrapped, or no active theme configured), so fall back to
+     * the edit theme. Callers must tolerate null — static pages then simply
+     * appear empty rather than crashing the request.
      */
-    protected function theme(): Theme
+    protected function theme(): ?Theme
     {
-        return Theme::getActiveTheme();
+        return Theme::getActiveTheme() ?: Theme::getEditTheme();
     }
 }

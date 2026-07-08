@@ -4,6 +4,7 @@ use Backend\Models\User;
 use PluginTestCase;
 use Renick\TailorCompanion\Classes\Auth\TokenManager;
 use Renick\TailorCompanion\Classes\Pages\PagesFeature;
+use Renick\TailorCompanion\Classes\Pages\PagesGateway;
 
 /**
  * Covers the "RainLab.Pages not installed / disabled" side of the optional
@@ -37,7 +38,33 @@ class ApiPagesUnavailableTest extends PluginTestCase
     public function tearDown(): void
     {
         PagesFeature::forceAvailability(null);
+        PagesFeature::setGateway(null);
         parent::tearDown();
+    }
+
+    /**
+     * /ping runs at the start of every sync — an error introspecting the
+     * optional static-pages feature (e.g. no resolvable active theme, as seen
+     * on a real deployment) must NEVER 500 the endpoint. It degrades to
+     * "unavailable" instead. Regression test for the pr11 500.
+     */
+    public function testPingSurvivesPagesIntrospectionError()
+    {
+        PagesFeature::forceAvailability(true);
+        PagesFeature::setGateway(new class implements PagesGateway {
+            public function layouts(): array { throw new \RuntimeException('no active theme'); }
+            public function tree(): array { return []; }
+            public function page(string $fileName): ?array { return null; }
+            public function updatePage(string $fileName, array $viewBag, ?string $markup, ?string $code): array { return []; }
+            public function menus(): array { return []; }
+            public function menu(string $code): ?array { return null; }
+        });
+
+        $response = $this->getJson('/api/tailor-companion/v1/ping', $this->authHeader);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.features.static_pages.available', false);
+        $response->assertJsonPath('data.features.static_pages.schema_version', null);
     }
 
     public function testPingReportsStaticPagesUnavailable()
