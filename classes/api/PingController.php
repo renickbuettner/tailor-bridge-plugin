@@ -2,6 +2,8 @@
 
 use BackendAuth;
 use Date;
+use Renick\TailorCompanion\Classes\Pages\LayoutSchemaSerializer;
+use Renick\TailorCompanion\Classes\Pages\PagesFeature;
 use Renick\TailorCompanion\Classes\Schema\SchemaFingerprint;
 use Response;
 use System;
@@ -29,6 +31,15 @@ class PingController
                 ],
                 'schema_version' => (new SchemaFingerprint)->globalVersion(),
                 'server_time' => Date::now()->toIso8601String(),
+                // Optional capabilities — clients treat a missing key as "off"
+                'features' => [
+                    'static_pages' => PagesFeature::isAvailable()
+                        ? [
+                            'available' => true,
+                            'schema_version' => (new LayoutSchemaSerializer)->schemaVersion(),
+                        ]
+                        : ['available' => false, 'schema_version' => null],
+                ],
             ],
         ]);
     }

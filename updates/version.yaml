@@ -20,3 +20,8 @@
 1.0.8:
     - "Add GET /logs returning the tail of the application log (bounded reverse-tail)"
     - "Add logs_enabled setting to gate error-log access"
+1.1.0:
+    - "Add optional RainLab.Pages integration: static page browsing and editing"
+    - "Add GET /pages/schema, /pages/tree, /pages/file/{fileName} and PATCH to edit pages"
+    - "Add GET /pages/menus and /pages/menus/{code} (read-only)"
+    - "Advertise features.static_pages on /ping; add pages_enabled setting"

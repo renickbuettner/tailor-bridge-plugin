@@ -91,9 +91,25 @@ Base path: `/api/tailor-companion/v1`
 | `GET /files/{id}` | Download an attachment |
 | `GET /sites` | List sites + whether multisite is enabled |
 | `GET /logs` | Tail of the application error log (`?lines=`, gated by a setting) |
+| `GET /pages/schema` | Static-page layouts as normalized form definitions (ETag) |
+| `GET /pages/tree` | Static-page hierarchy with per-page content hash |
+| `GET /pages/file/{fileName}` | A single static page (fields, placeholders, markup) |
+| `PATCH /pages/file/{fileName}` | Edit an existing static page (optimistic `base_hash`) |
+| `GET /pages/menus`, `GET /pages/menus/{code}` | Static menus (read-only) |
 
 On a multisite install, send `X-Tailor-Site: <site id>` (or `?site=`) with any
 content request to scope it to that site; without it the primary site is used.
+
+### Static pages (optional)
+
+The `/pages/*` endpoints integrate [RainLab.Pages](https://github.com/rainlab/pages-plugin)
+so a client can browse and edit static pages. They are **optional**: when
+RainLab.Pages is not installed (or the *Expose static pages* setting is off),
+every `/pages/*` request returns `404 feature_unavailable`, and `GET /ping`
+reports `features.static_pages.available: false`. Layouts are pre-aggregated
+into the same normalized field format as `/schema`; page sync is snapshot-diff
+(each page carries a `content_hash`, and edits use it as an optimistic
+concurrency token). v1 edits existing pages and lists menus read-only.
 
 The full contract — request/response schemas, error codes, field mapping — is
 in [`docs/openapi.yaml`](docs/openapi.yaml) (OpenAPI 3.0). Rendered docs are

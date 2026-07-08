@@ -26,3 +26,9 @@ fields:
         comment: Lets paired apps read the tail of the application log. Logs can contain sensitive data — disable to hide them.
         type: switch
         default: true
+
+    pages_enabled:
+        label: Expose static pages to the app
+        comment: Lets paired apps browse and edit RainLab.Pages static pages. Has no effect when RainLab.Pages is not installed.
+        type: switch
+        default: true

@@ -29,5 +29,6 @@ class Setting extends Model
         $this->token_expiry_days = 0;
         $this->journal_retention_days = 60;
         $this->logs_enabled = true;
+        $this->pages_enabled = true;
     }
 }

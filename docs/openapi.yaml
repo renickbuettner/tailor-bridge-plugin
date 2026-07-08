@@ -28,6 +28,11 @@ tags:
   - name: Sync
   - name: Files
   - name: System
+  - name: Pages
+    description: >-
+      Static pages (optional RainLab.Pages integration). All endpoints answer
+      404 `feature_unavailable` when the integration is missing or disabled;
+      clients discover availability via `features.static_pages` on /ping.
 
 paths:
   /auth/token:
@@ -122,6 +127,19 @@ paths:
                         type: string
                         description: Global schema fingerprint; changes when any blueprint changes.
                       server_time: { type: string, format: date-time }
+                      features:
+                        type: object
+                        description: Optional server capabilities. Clients treat a missing key as unavailable.
+                        properties:
+                          static_pages:
+                            type: object
+                            description: RainLab.Pages integration (optional dependency).
+                            properties:
+                              available: { type: boolean }
+                              schema_version:
+                                type: string
+                                nullable: true
+                                description: Pages layout-schema fingerprint; null while unavailable.
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /schema:
@@ -155,6 +173,202 @@ paths:
                       schema_version: { type: string }
         "304": { description: Not modified (schema unchanged) }
         "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /pages/schema:
+    get:
+      tags: [Pages]
+      summary: Static page layouts, normalized
+      description: >-
+        Every static-page layout aggregated into a form definition using the
+        same wire field format as /schema, so clients render page editors with
+        no extra field UI. `ETag` equals `pages_schema_version`; send it back as
+        `If-None-Match` to get `304`.
+      parameters:
+        - in: header
+          name: If-None-Match
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      layouts:
+                        type: array
+                        items: { $ref: "#/components/schemas/LayoutSchema" }
+                  meta:
+                    type: object
+                    properties:
+                      pages_schema_version: { type: string }
+        "304": { description: Not modified (pages schema unchanged) }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/FeatureUnavailable" }
+
+  /pages/tree:
+    get:
+      tags: [Pages]
+      summary: Static page hierarchy
+      description: >-
+        The nested page tree with per-page metadata and a `content_hash`
+        (sha256 of the raw file). Clients diff hashes to pull only changed
+        pages — there is no journal for static pages.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      pages:
+                        type: array
+                        items: { $ref: "#/components/schemas/PageTreeNode" }
+                  meta:
+                    type: object
+                    properties:
+                      pages_schema_version: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/FeatureUnavailable" }
+
+  /pages/file/{fileName}:
+    get:
+      tags: [Pages]
+      summary: One static page (full, editable)
+      parameters:
+        - $ref: "#/components/parameters/PageFileName"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Page" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Feature unavailable, or no page with this file name.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      tags: [Pages]
+      summary: Update an existing static page
+      description: >-
+        Applies field changes to an existing page (v1 does not create, delete,
+        move or rename pages). Send only changed fields. `base_hash` is the
+        `content_hash` the edit was based on — a mismatch returns 409 with the
+        current server page. url and layout are read-only; read-only/unknown
+        fields come back as warnings with their rejected value.
+      parameters:
+        - $ref: "#/components/parameters/PageFileName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                base_hash:
+                  type: string
+                  nullable: true
+                  description: content_hash the edit was based on; omit to force-apply.
+                fields:
+                  type: object
+                  additionalProperties: true
+                  description: Changed field values keyed by field name.
+                viewbag_extra:
+                  type: object
+                  additionalProperties: true
+                  description: Replacement lossless extras; omit to leave untouched.
+      responses:
+        "200":
+          description: Applied (possibly with warnings)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Page" }
+                  meta:
+                    type: object
+                    properties:
+                      warnings:
+                        type: array
+                        items: { $ref: "#/components/schemas/FieldWarning" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Feature unavailable, or no page with this file name.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: The page changed on the server since it was loaded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { $ref: "#/components/schemas/Error" }
+                  server_state: { $ref: "#/components/schemas/Page" }
+
+  /pages/menus:
+    get:
+      tags: [Pages]
+      summary: Static menus (read-only)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: { type: string }
+                        name: { type: string, nullable: true }
+                        content_hash: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/FeatureUnavailable" }
+
+  /pages/menus/{code}:
+    get:
+      tags: [Pages]
+      summary: One static menu with its item tree (read-only)
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Menu" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Feature unavailable, or no menu with this code.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /entries/{uuid}:
     get:
@@ -467,6 +681,12 @@ components:
       required: true
       schema: { type: string, format: uuid }
       description: Blueprint uuid (from /schema).
+    PageFileName:
+      in: path
+      name: fileName
+      required: true
+      schema: { type: string, pattern: "^[A-Za-z0-9\\-_.]+$" }
+      description: Static page base file name without extension (from /pages/tree).
 
   responses:
     Unauthorized:
@@ -501,6 +721,11 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
     TooManyRequests:
       description: Rate limit exceeded.
+    FeatureUnavailable:
+      description: The requested optional feature is not installed or disabled on this server.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
     Error:
@@ -570,6 +795,92 @@ components:
           type: object
           additionalProperties: true
           description: "Kind-specific extras: options, source_uuid, max_items, form, etc."
+
+    LayoutSchema:
+      type: object
+      description: One static-page layout as a renderable form definition.
+      properties:
+        file_name: { type: string, description: "Layout base file name (the page's layout value)." }
+        name: { type: string, description: "Layout description, or file name when unset." }
+        use_content:
+          type: boolean
+          description: "When true the layout exposes a markup content field."
+        fingerprint:
+          type: string
+          description: Per-layout content hash; changes only when the layout's form changes.
+        fields:
+          type: array
+          description: >-
+            Implicit page fields (title, url, layout, is_hidden,
+            navigation_hidden, meta_title, meta_description), the layout's syntax
+            fields, an optional markup field, and one field per editable
+            placeholder (named `placeholder:<name>`).
+          items: { $ref: "#/components/schemas/Field" }
+
+    PageTreeNode:
+      type: object
+      properties:
+        file_name: { type: string }
+        title: { type: string }
+        url: { type: string }
+        layout: { type: string, nullable: true }
+        is_hidden: { type: boolean }
+        navigation_hidden: { type: boolean }
+        content_hash: { type: string, description: "sha256 of the raw page file." }
+        mtime: { type: string, format: date-time, nullable: true }
+        children:
+          type: array
+          items: { $ref: "#/components/schemas/PageTreeNode" }
+
+    Page:
+      type: object
+      description: A full, editable static page.
+      properties:
+        file_name: { type: string }
+        title: { type: string }
+        url: { type: string, description: "Read-only in v1." }
+        layout: { type: string, nullable: true, description: "Read-only in v1." }
+        is_hidden: { type: boolean }
+        navigation_hidden: { type: boolean }
+        meta_title: { type: string, nullable: true }
+        meta_description: { type: string, nullable: true }
+        fields:
+          type: object
+          additionalProperties: true
+          description: >-
+            Editable values keyed by field name — syntax fields, placeholder
+            values (`placeholder:<name>`), and `markup` when the layout uses
+            content. Matches the layout's /pages/schema fields.
+        viewbag_extra:
+          type: object
+          additionalProperties: true
+          description: View-bag keys the layout does not define; round-tripped untouched.
+        content_hash: { type: string }
+        mtime: { type: string, format: date-time, nullable: true }
+
+    Menu:
+      type: object
+      properties:
+        code: { type: string }
+        name: { type: string, nullable: true }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MenuItem" }
+
+    MenuItem:
+      type: object
+      properties:
+        title: { type: string, nullable: true }
+        type: { type: string, nullable: true }
+        reference: { type: string, nullable: true }
+        url: { type: string, nullable: true }
+        extra:
+          type: object
+          additionalProperties: true
+          description: Other item keys (code, cmsPage, viewBag, attributes, …), lossless.
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MenuItem" }
 
     Entry:
       type: object
@@ -659,6 +970,15 @@ components:
           additionalProperties:
             type: array
             items: { type: string }
+
+    FieldWarning:
+      type: object
+      description: A field the server refused to apply, returned so nothing is lost.
+      properties:
+        field: { type: string }
+        code: { type: string, enum: [unknown_field, readonly_field] }
+        message: { type: string }
+        value: { description: "The rejected value." }
 
     FileDescriptor:
       type: object
