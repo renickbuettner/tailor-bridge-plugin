@@ -3,6 +3,7 @@
 use Cms\Classes\Layout;
 use Cms\Classes\Theme;
 use File;
+use System\Classes\SiteManager;
 
 /**
  * RainLabPagesGateway is the real PagesGateway backed by RainLab.Pages.
@@ -200,13 +201,34 @@ class RainLabPagesGateway implements PagesGateway
 
     /**
      * theme resolves the theme static pages live in, or null when none can be
-     * resolved. `getActiveTheme()` can be null in an API request context (no
-     * CMS route bootstrapped, or no active theme configured), so fall back to
-     * the edit theme. Callers must tolerate null — static pages then simply
-     * appear empty rather than crashing the request.
+     * resolved. Callers must tolerate null — static pages then simply appear
+     * empty rather than crashing the request.
+     *
+     * Resolution order:
+     *  1. `Theme::getActiveTheme()` — the normal path. Works when
+     *     `cms.active_theme` is populated (e.g. a single-theme install driven
+     *     by the `ACTIVE_THEME` env var).
+     *  2. The site definition's `theme` column. October persists the active
+     *     theme per site (see `Theme::setActiveTheme`), and a bare API request
+     *     does NOT populate `cms.active_theme` from the site — so `getActiveTheme`
+     *     falls back to the env default (often a non-existent theme → null).
+     *     Reading the site's own theme fixes multisite / per-site-theme installs.
+     *  3. `Theme::getEditTheme()` — a last backend-context fallback.
      */
     protected function theme(): ?Theme
     {
-        return Theme::getActiveTheme() ?: Theme::getEditTheme();
+        if ($theme = Theme::getActiveTheme()) {
+            return $theme;
+        }
+
+        $manager = SiteManager::instance();
+        foreach ([$manager->getActiveSite(), $manager->getPrimarySite()] as $site) {
+            $code = $site?->theme;
+            if ($code && ($loaded = Theme::load($code)) && $loaded->isValid()) {
+                return $loaded;
+            }
+        }
+
+        return Theme::getEditTheme();
     }
 }
