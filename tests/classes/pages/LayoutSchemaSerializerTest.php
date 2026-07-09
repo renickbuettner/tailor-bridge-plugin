@@ -2,6 +2,7 @@
 
 use PluginTestCase;
 use Renick\TailorCompanion\Classes\Pages\LayoutSchemaSerializer;
+use Renick\TailorCompanion\Classes\Pages\PageFormResolver;
 
 /**
  * Exercises the pure string-in path of the serializer, so it runs without
@@ -129,7 +130,110 @@ class LayoutSchemaSerializerTest extends PluginTestCase
         $field = $this->field($this->serialize(), 'blocks');
         $this->assertSame('nested', $field['kind']);
         $this->assertTrue($field['readonly'], 'Repeater without sub-fields must be read-only');
-        $this->assertSame([], (array) $field['config']['form']['fields']);
+        // Nothing resolved → no form/groups in the config at all.
+        $config = (array) $field['config'];
+        $this->assertArrayNotHasKey('form', $config);
+        $this->assertArrayNotHasKey('groups', $config);
+    }
+
+    // -- External form/groups resolution -------------------------------------
+
+    /**
+     * Fake resolver so the tests don't touch the filesystem — maps known ref
+     * strings to field/group definitions.
+     */
+    protected function resolvingSerializer(): LayoutSchemaSerializer
+    {
+        $fake = new class extends PageFormResolver {
+            public function resolveForm($ref): array
+            {
+                if ($ref === 'form-ref') {
+                    return [
+                        'headline' => ['type' => 'text', 'label' => 'Headline'],
+                        'enabled' => ['type' => 'switch', 'label' => 'Enabled'],
+                    ];
+                }
+                return parent::resolveForm($ref);
+            }
+
+            public function resolveGroups($ref): array
+            {
+                if ($ref === 'blocks-ref') {
+                    return [
+                        'heading' => ['name' => 'Heading', 'fields' => [
+                            'text' => ['type' => 'text', 'label' => 'Text'],
+                            'level' => ['type' => 'dropdown', 'label' => 'Level', 'options' => ['h1' => 'H1', 'h2' => 'H2']],
+                        ]],
+                        'gallery' => ['name' => 'Gallery', 'fields' => [
+                            // nested-within-nested: a repeater inside a group
+                            'images' => ['type' => 'repeater', 'label' => 'Images', 'fields' => [
+                                'src' => ['type' => 'mediafinder'],
+                                'caption' => ['type' => 'text'],
+                            ]],
+                        ]],
+                    ];
+                }
+                return parent::resolveGroups($ref);
+            }
+        };
+
+        return new LayoutSchemaSerializer($fake);
+    }
+
+    protected function findByName(array $fields, string $name): ?array
+    {
+        foreach ($fields as $field) {
+            if ($field['name'] === $name) {
+                return $field;
+            }
+        }
+        return null;
+    }
+
+    public function testExternalFormRepeaterBecomesEditable()
+    {
+        $layout = $this->resolvingSerializer()->serializeLayout('l', 'L', false,
+            '{repeater name="items" prompt="Add" form="form-ref"}<div></div>{/repeater}');
+
+        $field = $this->field($layout, 'items');
+        $this->assertFalse($field['readonly']);
+        $config = (array) $field['config'];
+        $sub = $config['form']['fields'];
+        $this->assertSame('headline', $sub[0]['name']);
+        $enabled = $this->findByName($sub, 'enabled');
+        $this->assertSame('scalar', $enabled['kind']);   // switch → scalar
+    }
+
+    public function testExternalGroupsRepeaterExposesGroupsAndNesting()
+    {
+        $layout = $this->resolvingSerializer()->serializeLayout('l', 'L', false,
+            '{repeater name="content_sections" prompt="Add section" groups="blocks-ref"}<div></div>{/repeater}');
+
+        $field = $this->field($layout, 'content_sections');
+        $this->assertFalse($field['readonly'], 'Resolvable groups repeater is editable');
+        $config = (array) $field['config'];
+        $this->assertArrayHasKey('groups', $config);
+        $this->assertSame('Heading', $config['groups']['heading']['name']);
+
+        // group field serialized to the wire (dropdown → scalar + options)
+        $level = $this->findByName($config['groups']['heading']['fields'], 'level');
+        $this->assertSame('scalar', $level['kind']);
+        $this->assertSame(['h1' => 'H1', 'h2' => 'H2'], (array) $level['config']['options']);
+
+        // nested-within-nested: images repeater inside the gallery group
+        $images = $this->findByName($config['groups']['gallery']['fields'], 'images');
+        $this->assertSame('nested', $images['kind']);
+        $this->assertFalse($images['readonly']);
+        $src = $this->findByName($images['config']['form']['fields'], 'src');
+        $this->assertSame('media', $src['kind']);
+    }
+
+    public function testUnresolvableGroupsStaysReadonly()
+    {
+        // Default (real) resolver: an unknown ref resolves to nothing → readonly.
+        $layout = $this->serializer->serializeLayout('l', 'L', false,
+            '{repeater name="x" groups="$/nope.yaml"}<div></div>{/repeater}');
+        $this->assertTrue($this->field($layout, 'x')['readonly']);
     }
 
     public function testMarkupFieldPresentOnlyWithUseContent()

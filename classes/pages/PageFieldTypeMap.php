@@ -41,7 +41,9 @@ class PageFieldTypeMap
             return 'media';
         }
 
-        if ($type === 'repeater') {
+        // Repeater (list of items) and nestedform/nesteditems (a single nested
+        // object) all map to the nested kind — the app renders them recursively.
+        if (in_array($type, ['repeater', 'nestedform', 'nesteditems'], true)) {
             return 'nested';
         }
 

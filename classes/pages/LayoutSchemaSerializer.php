@@ -27,11 +27,13 @@ class LayoutSchemaSerializer
 
     protected PageFieldTypeMap $typeMap;
     protected PlaceholderCodec $placeholders;
+    protected PageFormResolver $resolver;
 
-    public function __construct()
+    public function __construct(?PageFormResolver $resolver = null)
     {
         $this->typeMap = new PageFieldTypeMap;
         $this->placeholders = new PlaceholderCodec;
+        $this->resolver = $resolver ?? new PageFormResolver;
     }
 
     /**
@@ -138,13 +140,14 @@ class LayoutSchemaSerializer
         $kind = $this->typeMap->kindFor($type);
         $normalized = $this->normalizeSyntaxConfig($kind, $config);
 
-        // A repeater whose sub-fields aren't declared inline in the layout
-        // (page-builder repeaters backed by an external form/YAML, or field
-        // groups) has no schema the app can build an editor from. Mark it
-        // read-only so the value round-trips losslessly instead of showing a
-        // broken/empty editor that could wipe the content.
+        // A repeater whose sub-fields resolve to nothing — neither inline nor an
+        // external form nor groups — has no schema the app can build an editor
+        // from. Mark it read-only so the value round-trips losslessly instead of
+        // showing a broken/empty editor that could wipe the content.
         $readonly = $this->typeMap->isReadonly($type)
-            || ($kind === 'nested' && empty($normalized['form']['fields']));
+            || ($kind === 'nested'
+                && empty($normalized['form']['fields'])
+                && empty($normalized['groups']));
 
         return $this->field($name, $type, $kind, (string) ($config['label'] ?? $name), [
             'tab' => $config['tab'] ?? null,
@@ -153,6 +156,20 @@ class LayoutSchemaSerializer
             'custom' => $kind === 'unknown',
             'config' => $normalized,
         ]);
+    }
+
+    /**
+     * serializeSubFieldMap serializes a `[name => config]` sub-field map into the
+     * wire field list, recursively (a sub-field may itself be a nested repeater).
+     */
+    protected function serializeSubFieldMap(array $fieldMap): array
+    {
+        $result = [];
+        foreach ($fieldMap as $subName => $subConfig) {
+            $result[] = $this->serializeSyntaxField((string) $subName, (array) $subConfig);
+        }
+
+        return $result;
     }
 
     /**
@@ -180,13 +197,40 @@ class LayoutSchemaSerializer
         }
 
         if ($kind === 'nested') {
-            $subFields = [];
-            foreach ((array) ($config['fields'] ?? []) as $subName => $subConfig) {
-                $subFields[] = $this->serializeSyntaxField((string) $subName, (array) $subConfig);
+            // Inline sub-fields (from `{...}` tags inside the repeater body),
+            // or an external/inline `form=` reference resolved to a field map.
+            $formFields = (array) ($config['fields'] ?? []);
+            if (!$formFields && isset($config['form'])) {
+                $formFields = $this->resolver->resolveForm($config['form']);
             }
-            $result['form'] = ['fields' => $subFields];
+            if ($formFields) {
+                $result['form'] = ['fields' => $this->serializeSubFieldMap($formFields)];
+            }
+
+            // Groups / block types — inline map or external reference (each group
+            // config may itself be a reference). Same wire shape as Tailor
+            // (config.groups: {code: {name, fields}}).
+            if (isset($config['groups'])) {
+                $groups = [];
+                foreach ($this->resolver->resolveGroups($config['groups']) as $code => $group) {
+                    $groups[$code] = [
+                        'name' => $group['name'],
+                        'fields' => $this->serializeSubFieldMap($group['fields']),
+                    ];
+                }
+                if ($groups) {
+                    $result['groups'] = $groups;
+                }
+            }
+
             if (isset($config['prompt'])) {
                 $result['prompt'] = (string) $config['prompt'];
+            }
+            if (isset($config['titleFrom'])) {
+                $result['title_from'] = (string) $config['titleFrom'];
+            }
+            if (isset($config['maxItems'])) {
+                $result['max_items'] = (int) $config['maxItems'];
             }
         }
 

@@ -25,9 +25,11 @@ class PageFieldTypeMapTest extends PluginTestCase
         $this->assertSame('media', $this->map->kindFor('mediafinder'));
     }
 
-    public function testRepeaterMapsToNested()
+    public function testNestedTypesMapToNested()
     {
         $this->assertSame('nested', $this->map->kindFor('repeater'));
+        $this->assertSame('nested', $this->map->kindFor('nestedform'));
+        $this->assertSame('nested', $this->map->kindFor('nesteditems'));
     }
 
     public function testUnknownTypesFallBackToUnknown()
