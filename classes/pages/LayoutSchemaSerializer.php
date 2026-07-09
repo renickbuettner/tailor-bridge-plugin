@@ -136,13 +136,22 @@ class LayoutSchemaSerializer
     {
         $type = (string) ($config['type'] ?? 'text');
         $kind = $this->typeMap->kindFor($type);
+        $normalized = $this->normalizeSyntaxConfig($kind, $config);
+
+        // A repeater whose sub-fields aren't declared inline in the layout
+        // (page-builder repeaters backed by an external form/YAML, or field
+        // groups) has no schema the app can build an editor from. Mark it
+        // read-only so the value round-trips losslessly instead of showing a
+        // broken/empty editor that could wipe the content.
+        $readonly = $this->typeMap->isReadonly($type)
+            || ($kind === 'nested' && empty($normalized['form']['fields']));
 
         return $this->field($name, $type, $kind, (string) ($config['label'] ?? $name), [
             'tab' => $config['tab'] ?? null,
             'comment' => $config['comment'] ?? null,
-            'readonly' => $this->typeMap->isReadonly($type),
+            'readonly' => $readonly,
             'custom' => $kind === 'unknown',
-            'config' => $this->normalizeSyntaxConfig($kind, $config),
+            'config' => $normalized,
         ]);
     }
 

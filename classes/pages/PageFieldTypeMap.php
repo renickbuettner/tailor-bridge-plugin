@@ -18,11 +18,14 @@ class PageFieldTypeMap
         'markdown',
         'dropdown',
         'checkbox',
+        'switch',
         'datepicker',
         'colorpicker',
         'number',
         'balloon-selector',
         'radio',
+        'email',
+        'password',
     ];
 
     /**

@@ -148,8 +148,13 @@ class PageWriter
                     $plan['warnings'][] = $this->warning($name, 'readonly_field', 'This field is read-only.', $value);
                     continue;
                 }
-                $plan['viewBag'][$name] = $value; // lossless — stored as-is
-                $this->recordDiff($plan, $name, $currentViewBag[$name] ?? null, $value);
+                // The view bag serializes to INI (strings). The app sends switch
+                // fields as JSON booleans — store them as "1"/"0" so they match
+                // how October writes and reads switches. Other values pass
+                // through untouched (lossless).
+                $stored = is_bool($value) ? ($value ? '1' : '0') : $value;
+                $plan['viewBag'][$name] = $stored;
+                $this->recordDiff($plan, $name, $currentViewBag[$name] ?? null, $stored);
                 continue;
             }
 

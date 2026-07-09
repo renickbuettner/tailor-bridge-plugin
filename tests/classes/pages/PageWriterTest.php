@@ -20,6 +20,7 @@ class PageWriterTest extends PluginTestCase
 
     protected string $markup = <<<'TWIG'
     {variable name="hero" label="Hero" type="text"}{/variable}
+    {variable name="show_toc" label="Show ToC" type="switch"}{/variable}
     {variable name="attachment" label="File" type="fileupload"}{/variable}
     <article>{% page %}</article>
     {% placeholder sidebar type="html" %}
@@ -92,6 +93,17 @@ class PageWriterTest extends PluginTestCase
         // Fresh page reflected back
         $this->assertSame('New title', $result['page']['title']);
         $this->assertSame('<p>New side</p>', $result['page']['fields']['placeholder:sidebar']);
+    }
+
+    public function testSwitchBoolIsStoredAsIniString()
+    {
+        // The app sends switch fields as JSON booleans; the view bag serializes
+        // to INI, so they must be stored as "1"/"0".
+        $this->writer->apply($this->rawPage(), $this->layout, ['show_toc' => true], null, 'base-hash');
+        $this->assertSame('1', $this->gateway->lastUpdate['viewBag']['show_toc']);
+
+        $this->writer->apply($this->rawPage(), $this->layout, ['show_toc' => false], null, 'base-hash');
+        $this->assertSame('0', $this->gateway->lastUpdate['viewBag']['show_toc']);
     }
 
     public function testReadonlyAndUnknownFieldsBecomeWarnings()

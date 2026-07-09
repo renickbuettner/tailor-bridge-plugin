@@ -20,8 +20,12 @@ class LayoutSchemaSerializerTest extends PluginTestCase
     {variable name="hero_image" label="Hero image" tab="Hero" type="mediafinder" mode="image"}{/variable}
     {variable name="badge_style" label="Badge style" tab="Hero" type="balloon-selector" options="none:None|new:New"}{/variable}
     {variable name="attachment" label="Attachment" type="fileupload"}{/variable}
+    {variable name="use_toc" label="Table of contents" type="switch"}{/variable}
     {repeater name="highlights" prompt="Add a highlight" tab="Highlights"}
         <h2>{text name="heading" label="Heading"}{/text}</h2>
+    {/repeater}
+    {repeater name="blocks" prompt="Add a block"}
+        <div class="block">no inline field tags — external form</div>
     {/repeater}
     <article>{% page %}</article>
     {% placeholder sidebar title="Sidebar" type="html" %}
@@ -100,10 +104,32 @@ class LayoutSchemaSerializerTest extends PluginTestCase
 
     public function testNestedRepeaterExposesSubFields()
     {
-        $config = (array) $this->field($this->serialize(), 'highlights')['config'];
+        $field = $this->field($this->serialize(), 'highlights');
+        $config = (array) $field['config'];
         $this->assertArrayHasKey('form', $config);
         $this->assertSame('heading', $config['form']['fields'][0]['name']);
         $this->assertSame('Add a highlight', $config['prompt']);
+        // An inline-defined repeater stays editable.
+        $this->assertFalse($field['readonly']);
+    }
+
+    public function testSwitchFieldIsScalar()
+    {
+        $field = $this->field($this->serialize(), 'use_toc');
+        $this->assertSame('scalar', $field['kind']);
+        $this->assertSame('switch', $field['type']);
+        $this->assertFalse($field['readonly']);
+        $this->assertFalse($field['custom']);
+    }
+
+    public function testRepeaterWithoutInlineFieldsIsReadonly()
+    {
+        // A page-builder repeater with no inline sub-fields can't be edited by
+        // the generic form — mark it read-only so the value round-trips.
+        $field = $this->field($this->serialize(), 'blocks');
+        $this->assertSame('nested', $field['kind']);
+        $this->assertTrue($field['readonly'], 'Repeater without sub-fields must be read-only');
+        $this->assertSame([], (array) $field['config']['form']['fields']);
     }
 
     public function testMarkupFieldPresentOnlyWithUseContent()

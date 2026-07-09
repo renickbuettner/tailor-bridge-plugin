@@ -15,7 +15,7 @@ class PageFieldTypeMapTest extends PluginTestCase
 
     public function testScalarTypesMapToScalar()
     {
-        foreach (['text', 'textarea', 'richeditor', 'markdown', 'dropdown', 'checkbox', 'datepicker', 'colorpicker', 'balloon-selector'] as $type) {
+        foreach (['text', 'textarea', 'richeditor', 'markdown', 'dropdown', 'checkbox', 'switch', 'datepicker', 'colorpicker', 'balloon-selector', 'number', 'radio', 'email', 'password'] as $type) {
             $this->assertSame('scalar', $this->map->kindFor($type), "{$type} should be scalar");
         }
     }
