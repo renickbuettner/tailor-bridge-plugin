@@ -42,3 +42,5 @@
 1.1.5:
     - "Map static-page taglist fields to the json kind with tag constraints (editable in the app)"
     - "Map ruler/section layout widgets to a presentational kind (rendered as chrome, no value)"
+1.1.6:
+    - "Add branding settings (app title, logo, preview website URL) exposed on /ping"

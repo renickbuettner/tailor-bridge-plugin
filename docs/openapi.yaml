@@ -140,6 +140,22 @@ paths:
                                 type: string
                                 nullable: true
                                 description: Pages layout-schema fingerprint; null while unavailable.
+                      branding:
+                        type: object
+                        description: Customizable app presentation. Null fields mean "use the app default".
+                        properties:
+                          title:
+                            type: string
+                            nullable: true
+                            description: Replaces the default app title.
+                          logo_url:
+                            type: string
+                            nullable: true
+                            description: Absolute URL of the configured logo image.
+                          preview_url:
+                            type: string
+                            nullable: true
+                            description: Website URL for the app's Preview tab; null → use the paired backend URL.
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /version:

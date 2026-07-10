@@ -10,6 +10,31 @@ fields:
         readOnly: true
         span: full
 
+    _branding_section:
+        label: Branding
+        type: section
+        comment: Customize how the companion app presents this backend — title, logo and the website shown in the app's Preview tab.
+
+    brand_title:
+        label: App title
+        commentAbove: Shown in place of "Tailor" in the app. Leave empty to keep the default.
+        type: text
+        span: left
+
+    preview_url:
+        label: Preview website URL
+        commentAbove: Full URL opened in the app's Preview tab (e.g. https://example.com). Leave empty to use the paired backend URL.
+        type: text
+        span: right
+
+    brand_logo:
+        label: App logo
+        commentAbove: Optional logo shown in the app header. Pick an image from the media library.
+        type: mediafinder
+        mode: image
+        imageWidth: 120
+        imageHeight: 120
+
     api_enabled:
         label: Enable API
         comment: Master switch — when disabled, every companion app request is rejected.

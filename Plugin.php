@@ -17,7 +17,7 @@ class Plugin extends PluginBase
      * reports an old build after a deploy, the new code is NOT live yet (e.g.
      * OPcache not cleared / PHP-FPM not restarted, or the wrong branch shipped).
      */
-    const BUILD = '2026-07-10.3';
+    const BUILD = '2026-07-10.6';
 
     /**
      * pluginDetails about this plugin.

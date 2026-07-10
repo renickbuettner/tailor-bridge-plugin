@@ -5,6 +5,7 @@ use Date;
 use Renick\TailorCompanion\Classes\Pages\LayoutSchemaSerializer;
 use Renick\TailorCompanion\Classes\Pages\PagesFeature;
 use Renick\TailorCompanion\Classes\Schema\SchemaFingerprint;
+use Renick\TailorCompanion\Models\Setting;
 use Response;
 use System;
 use System\Classes\VersionManager;
@@ -35,8 +36,46 @@ class PingController
                 'features' => [
                     'static_pages' => $this->staticPagesFeature(),
                 ],
+                'branding' => $this->branding(),
             ],
         ]);
+    }
+
+    /**
+     * branding returns the customizable app presentation (title, logo, preview
+     * website). All fields are nullable — an unset value means "use the app
+     * default". Wrapped so a misconfigured logo path can never 500 /ping.
+     */
+    protected function branding(): array
+    {
+        try {
+            $title = trim((string) Setting::get('brand_title', ''));
+            $preview = trim((string) Setting::get('preview_url', ''));
+            $logo = trim((string) Setting::get('brand_logo', ''));
+
+            return [
+                'title' => $title !== '' ? $title : null,
+                'logo_url' => $logo !== '' ? $this->logoUrl($logo) : null,
+                'preview_url' => $preview !== '' ? $preview : null,
+            ];
+        }
+        catch (\Throwable $ex) {
+            return ['title' => null, 'logo_url' => null, 'preview_url' => null];
+        }
+    }
+
+    /**
+     * logoUrl resolves a media-library path to an absolute URL, or null when
+     * it can't be resolved (missing media module, bad path).
+     */
+    protected function logoUrl(string $path): ?string
+    {
+        try {
+            return \Media\Classes\MediaLibrary::url($path);
+        }
+        catch (\Throwable $ex) {
+            return null;
+        }
     }
 
     /**

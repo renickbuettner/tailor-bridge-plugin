@@ -44,5 +44,8 @@ class Setting extends Model
         $this->logs_enabled = true;
         $this->pages_enabled = true;
         $this->audit_reads_enabled = true;
+        $this->brand_title = null;
+        $this->brand_logo = null;
+        $this->preview_url = null;
     }
 }
