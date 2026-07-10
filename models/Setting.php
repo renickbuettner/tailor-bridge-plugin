@@ -43,5 +43,6 @@ class Setting extends Model
         $this->journal_retention_days = 60;
         $this->logs_enabled = true;
         $this->pages_enabled = true;
+        $this->audit_reads_enabled = true;
     }
 }

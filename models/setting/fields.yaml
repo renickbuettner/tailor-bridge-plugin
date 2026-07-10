@@ -34,6 +34,12 @@ fields:
         type: switch
         default: true
 
+    audit_reads_enabled:
+        label: Audit data reads
+        comment: Also record data retrieval (syncs, entry/page reads) in the audit log — who read what, when. Disable if the audit log gets too noisy.
+        type: switch
+        default: true
+
     pages_enabled:
         label: Expose static pages to the app
         comment: Lets paired apps browse and edit RainLab.Pages static pages. Has no effect when RainLab.Pages is not installed.

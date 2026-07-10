@@ -36,3 +36,6 @@
 1.1.3:
     - "Detect self-referential page-builder blocks: describe a recursive reference once instead of inlining it at every level (pages schema was ~20MB, now compact)"
     - "Flag recursive nested fields so clients can reuse the ancestor schema"
+1.1.4:
+    - "Audit data reads: record successful GET syncs/reads (who read what, when) in the audit log"
+    - "Add audit_reads_enabled setting to gate read auditing"

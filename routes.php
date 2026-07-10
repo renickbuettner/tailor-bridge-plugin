@@ -15,6 +15,7 @@ use Renick\TailorCompanion\Classes\Api\RecordsController;
 use Renick\TailorCompanion\Classes\Api\SchemaController;
 use Renick\TailorCompanion\Classes\Api\SitesController;
 use Renick\TailorCompanion\Classes\Api\VersionController;
+use Renick\TailorCompanion\Classes\Middleware\AuditRead;
 use Renick\TailorCompanion\Classes\Middleware\ForceJson;
 use Renick\TailorCompanion\Classes\Middleware\SiteContext;
 use Renick\TailorCompanion\Classes\Middleware\StaticPagesEnabled;
@@ -48,8 +49,9 @@ Route::group([
         // Tail of the application error log (console view in the app)
         Route::get('logs', LogsController::class);
 
-        // Site-scoped endpoints (X-Tailor-Site header selects the site)
-        Route::group(['middleware' => [SiteContext::class]], function () {
+        // Site-scoped endpoints (X-Tailor-Site header selects the site).
+        // AuditRead logs successful GET data reads (who synced/read what, when).
+        Route::group(['middleware' => [SiteContext::class, AuditRead::class]], function () {
             Route::get('schema', SchemaController::class);
             Route::get('entries/{uuid}', [EntriesController::class, 'index']);
             Route::get('entries/{uuid}/{id}', [EntriesController::class, 'show'])->whereNumber('id');
