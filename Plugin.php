@@ -11,6 +11,15 @@ use System\Classes\PluginBase;
 class Plugin extends PluginBase
 {
     /**
+     * BUILD is a code-level deploy marker. Bump it on every deploy-relevant
+     * change so `GET /version` confirms which code is actually RUNNING —
+     * independent of DB migrations and PHP OPcache. If `/version` 404s or still
+     * reports an old build after a deploy, the new code is NOT live yet (e.g.
+     * OPcache not cleared / PHP-FPM not restarted, or the wrong branch shipped).
+     */
+    const BUILD = '2026-07-10.1';
+
+    /**
      * pluginDetails about this plugin.
      */
     public function pluginDetails()

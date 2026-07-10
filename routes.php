@@ -14,6 +14,7 @@ use Renick\TailorCompanion\Classes\Api\PingController;
 use Renick\TailorCompanion\Classes\Api\RecordsController;
 use Renick\TailorCompanion\Classes\Api\SchemaController;
 use Renick\TailorCompanion\Classes\Api\SitesController;
+use Renick\TailorCompanion\Classes\Api\VersionController;
 use Renick\TailorCompanion\Classes\Middleware\ForceJson;
 use Renick\TailorCompanion\Classes\Middleware\SiteContext;
 use Renick\TailorCompanion\Classes\Middleware\StaticPagesEnabled;
@@ -40,6 +41,9 @@ Route::group([
     // hammering is rate-limited before it hits the DB lookup.
     Route::group(['middleware' => ['throttle:120,1,api', TokenAuth::class]], function () {
         Route::get('ping', PingController::class);
+        // Dependency-free deploy marker — confirms which plugin code is live
+        // even when /ping's optional subsystems are misconfigured.
+        Route::get('version', VersionController::class);
         Route::get('sites', SitesController::class);
         // Tail of the application error log (console view in the app)
         Route::get('logs', LogsController::class);

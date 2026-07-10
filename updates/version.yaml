@@ -25,3 +25,8 @@
     - "Add GET /pages/schema, /pages/tree, /pages/file/{fileName} and PATCH to edit pages"
     - "Add GET /pages/menus and /pages/menus/{code} (read-only)"
     - "Advertise features.static_pages on /ping; add pages_enabled setting"
+1.1.1:
+    - "Add GET /version: dependency-free deploy marker (build id + plugin version)"
+    - "Harden static-pages: nullable theme with site fallback; /ping never 500s on pages introspection"
+    - "Resolve external repeater form=/groups= references (page-builder blocks editable in the app)"
+    - "Support switch fields on static pages; coerce booleans to INI 1/0"

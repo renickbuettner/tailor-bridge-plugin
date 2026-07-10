@@ -142,6 +142,38 @@ paths:
                                 description: Pages layout-schema fingerprint; null while unavailable.
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /version:
+    get:
+      tags: [Auth]
+      summary: Deployed build marker
+      description: >-
+        Dependency-free deploy check. Reports the `build` constant compiled into
+        the running plugin code, so it confirms which code is actually live —
+        independent of DB migrations and PHP OPcache — even when the optional
+        static-pages subsystem is misconfigured. A `404` means the deployed code
+        predates this endpoint; an old `build` means files updated but OPcache /
+        PHP-FPM still serve stale bytecode.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      api_version: { type: integer, example: 1 }
+                      build:
+                        type: string
+                        description: Code-level deploy marker (Plugin::BUILD).
+                        example: "2026-07-10.1"
+                      plugin_version: { type: string, nullable: true }
+                      october_version: { type: string, nullable: true }
+                      server_time: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /schema:
     get:
       tags: [Schema]

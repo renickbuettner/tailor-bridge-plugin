@@ -1,6 +1,7 @@
 <?php namespace Renick\TailorCompanion\Models;
 
 use Model;
+use Renick\TailorCompanion\Plugin;
 
 /**
  * Setting stores plugin configuration (Settings → Tailor Companion → Settings).
@@ -19,6 +20,18 @@ class Setting extends Model
      * @var string settingsFields form definition
      */
     public $settingsFields = 'fields.yaml';
+
+    /**
+     * getDeployedBuildAttribute surfaces the running plugin's code-level build
+     * marker in the backend so you can confirm at a glance whether a deploy went
+     * live (matches the `build` field of the `GET /version` API endpoint). It is
+     * read from the constant compiled into the code, not from storage, so it
+     * reflects the actual running bytecode.
+     */
+    public function getDeployedBuildAttribute(): string
+    {
+        return Plugin::BUILD;
+    }
 
     /**
      * initSettingsData defaults.

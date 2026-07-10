@@ -3,6 +3,13 @@
 # ===================================
 
 fields:
+    deployed_build:
+        label: Deployed build
+        comment: "Code-level build marker of the plugin that is actually running. Matches the `build` field of GET /version. If this doesn't change after a deploy, the new code isn't live (clear OPcache / restart PHP-FPM)."
+        type: text
+        readOnly: true
+        span: full
+
     api_enabled:
         label: Enable API
         comment: Master switch — when disabled, every companion app request is rejected.
