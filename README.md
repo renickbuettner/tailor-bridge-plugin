@@ -27,15 +27,29 @@ incrementally, and logs all mutations to an audit trail.
   conflict handling; blueprint validation always runs.
 - **Globals** — read a global's single record and update its fields through
   the same batch endpoint.
+- **Static pages** — optional [RainLab.Pages](https://github.com/rainlab/pages-plugin)
+  integration: browse and edit static pages, including block-based page
+  builders (external `form=`/`groups=` YAML resolved into editable nested
+  fields, recursion-safe).
 - **Multisite** — list sites and scope any request to one site via the
   `X-Tailor-Site` header; the change journal is tracked per site.
 - **File uploads** — scoped, validated attachment upload & download.
-- **Audit log** — every API mutation recorded with a field-level diff,
-  viewable in the backend.
+- **Audit log** — every API mutation recorded with a field-level diff; can
+  also record data reads (who synced/read what, when), gated by a setting.
+- **Branding** — customize the app's title, logo and Preview-tab website URL
+  from the backend; served to clients on `GET /ping`.
+- **Backend session** — `POST /session` mints a one-time URL that logs the
+  token's user into the OctoberCMS backend, so a client can open the admin
+  already signed in.
 - **Error log tail** — the app can read the last N lines of the application
   log (bounded reverse-tail, so large logs stay fast); gated by a setting.
+  Uncatchable fatals (OOM/timeout) are captured to the log too.
+- **Deploy marker** — `GET /version` reports a code-level `build` constant, a
+  dependency-free way to confirm which plugin code is actually running (also
+  shown in the backend settings).
 - **Backend UI** — Settings → Tailor Companion: App Connect (tokens + QR),
-  Audit Log, and settings (API switch, token expiry, journal retention).
+  Audit Log, and settings (API switch, token expiry, journal retention, read
+  auditing, branding, deployed build).
 
 ## Requirements
 
@@ -79,7 +93,9 @@ Base path: `/api/tailor-companion/v1`
 | Method & path | Purpose |
 |---|---|
 | `POST /auth/token` | Issue a token from `login` + `password` (throttled) |
-| `GET /ping` | Auth check + server/schema version |
+| `GET /ping` | Auth check + server/schema version; also capabilities and `branding` |
+| `GET /version` | Dependency-free deploy marker (`build`, plugin/October version) |
+| `POST /session` | One-time URL that logs the token's user into the backend |
 | `GET /schema` | All blueprints + normalized fields (ETag) |
 | `GET /entries/{uuid}` | Cursor-paginated entries of a blueprint |
 | `GET /entries/{uuid}/{id}` | A single entry |
@@ -110,6 +126,14 @@ reports `features.static_pages.available: false`. Layouts are pre-aggregated
 into the same normalized field format as `/schema`; page sync is snapshot-diff
 (each page carries a `content_hash`, and edits use it as an optimistic
 concurrency token). v1 edits existing pages and lists menus read-only.
+
+Block-based page builders are supported: a layout repeater's external
+`form=`/`groups=` YAML (e.g. `groups="$/theme/meta/blocks.yaml"`) is resolved
+into nested editable fields — recursively, and safely (self-referential blocks
+are described once and flagged `recursive`, with depth caps as a backstop, so a
+recursive builder can't blow up the schema or the request). Page field types map
+to the same wire kinds as Tailor, with `switch` as a scalar boolean, `taglist`
+as json, and `ruler`/`section` as valueless presentational chrome.
 
 The full contract — request/response schemas, error codes, field mapping — is
 in [`docs/openapi.yaml`](docs/openapi.yaml) (OpenAPI 3.0). Rendered docs are
