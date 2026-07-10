@@ -253,7 +253,18 @@ class LayoutSchemaSerializerTest extends PluginTestCase
         // It returned at all (no overflow) and the top level is still editable.
         $field = $this->field($layout, 'content_sections');
         $this->assertFalse($field['readonly']);
-        $this->assertArrayHasKey('groups', (array) $field['config']);
+        $config = (array) $field['config'];
+        $this->assertArrayHasKey('groups', $config);
+
+        // The back-reference (inner repeater pointing at the same groups) is
+        // described ONCE: not re-expanded, flagged recursive, and read-only so
+        // the value still round-trips losslessly. This is what keeps the schema
+        // from exploding combinatorially.
+        $inner = $this->findByName($config['groups']['block']['fields'], 'inner');
+        $this->assertSame('nested', $inner['kind']);
+        $this->assertTrue($inner['readonly'], 'Recursive back-reference is read-only');
+        $this->assertTrue(((array) $inner['config'])['recursive'] ?? false);
+        $this->assertArrayNotHasKey('groups', (array) $inner['config']);
     }
 
     public function testUnresolvableGroupsStaysReadonly()

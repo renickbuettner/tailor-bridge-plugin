@@ -43,6 +43,18 @@ class LayoutSchemaSerializer
     /** Current sub-field recursion depth (see MAX_NESTING). */
     protected int $nestingDepth = 0;
 
+    /**
+     * Stack of form/groups reference signatures currently being expanded, used
+     * to detect self-referential builders (a `columns` block that can contain
+     * `columns`). Re-expanding a reference already open on the path would inline
+     * the same sub-schema at every level and blow the payload up
+     * combinatorially — so such a back-reference is described once and flagged
+     * `recursive` instead.
+     *
+     * @var array<int, string>
+     */
+    protected array $refStack = [];
+
     public function __construct(?PageFormResolver $resolver = null)
     {
         $this->typeMap = new PageFieldTypeMap;
@@ -203,6 +215,40 @@ class LayoutSchemaSerializer
     }
 
     /**
+     * refSignature returns the cycle-tracking key for a form/groups reference:
+     * the string path for an external reference, or null for an inline
+     * array/absent reference (which cannot be self-referential).
+     *
+     * @param mixed $ref
+     */
+    protected function refSignature($ref): ?string
+    {
+        return is_string($ref) && $ref !== '' ? $ref : null;
+    }
+
+    /**
+     * expandWithRef serializes a sub-field map while marking $ref as "open" on
+     * the path, so a nested field pointing back at the same reference is caught
+     * as a cycle instead of re-expanded. A null $ref (inline fields) is expanded
+     * normally — inline definitions can't reference themselves.
+     */
+    protected function expandWithRef(?string $ref, array $fieldMap): array
+    {
+        if ($ref !== null) {
+            $this->refStack[] = $ref;
+        }
+
+        try {
+            return $this->serializeSubFieldMap($fieldMap);
+        }
+        finally {
+            if ($ref !== null) {
+                array_pop($this->refStack);
+            }
+        }
+    }
+
+    /**
      * normalizeSyntaxConfig extracts the kind-relevant extras, mirroring the
      * Tailor schema config normalization the app already understands.
      */
@@ -227,30 +273,52 @@ class LayoutSchemaSerializer
         }
 
         if ($kind === 'nested') {
+            $cycled = false;
+
             // Inline sub-fields (from `{...}` tags inside the repeater body),
             // or an external/inline `form=` reference resolved to a field map.
             $formFields = (array) ($config['fields'] ?? []);
+            $formRef = $this->refSignature($config['form'] ?? null);
             if (!$formFields && isset($config['form'])) {
-                $formFields = $this->resolver->resolveForm($config['form']);
+                if ($formRef !== null && in_array($formRef, $this->refStack, true)) {
+                    $cycled = true;                       // form ref already open on the path
+                }
+                else {
+                    $formFields = $this->resolver->resolveForm($config['form']);
+                }
             }
             if ($formFields) {
-                $result['form'] = ['fields' => $this->serializeSubFieldMap($formFields)];
+                $result['form'] = ['fields' => $this->expandWithRef($formRef, $formFields)];
             }
 
             // Groups / block types — inline map or external reference (each group
             // config may itself be a reference). Same wire shape as Tailor
             // (config.groups: {code: {name, fields}}).
+            $groupsRef = $this->refSignature($config['groups'] ?? null);
             if (isset($config['groups'])) {
-                $groups = [];
-                foreach ($this->resolver->resolveGroups($config['groups']) as $code => $group) {
-                    $groups[$code] = [
-                        'name' => $group['name'],
-                        'fields' => $this->serializeSubFieldMap($group['fields']),
-                    ];
+                if ($groupsRef !== null && in_array($groupsRef, $this->refStack, true)) {
+                    $cycled = true;                       // groups ref already open on the path
                 }
-                if ($groups) {
-                    $result['groups'] = $groups;
+                else {
+                    $groups = [];
+                    foreach ($this->resolver->resolveGroups($config['groups']) as $code => $group) {
+                        $groups[$code] = [
+                            'name' => $group['name'],
+                            'fields' => $this->expandWithRef($groupsRef, $group['fields']),
+                        ];
+                    }
+                    if ($groups) {
+                        $result['groups'] = $groups;
+                    }
                 }
+            }
+
+            // A repeater that refers back to a builder it is already inside is
+            // recursive. It is described once (fields left empty here → the
+            // field serializes read-only, lossless); the flag lets the client
+            // reuse the ancestor schema to keep editing deeper if it chooses.
+            if ($cycled) {
+                $result['recursive'] = true;
             }
 
             if (isset($config['prompt'])) {

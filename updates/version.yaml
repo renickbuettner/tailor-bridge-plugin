@@ -33,3 +33,6 @@
 1.1.2:
     - "Bound static-pages recursion (page tree + builder groups/form) against cyclic references"
     - "Log uncatchable fatal shutdowns so GET /logs surfaces them instead of a silent 500"
+1.1.3:
+    - "Detect self-referential page-builder blocks: describe a recursive reference once instead of inlining it at every level (pages schema was ~20MB, now compact)"
+    - "Flag recursive nested fields so clients can reuse the ancestor schema"
