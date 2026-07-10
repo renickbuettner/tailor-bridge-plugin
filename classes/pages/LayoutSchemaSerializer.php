@@ -46,6 +46,9 @@ class LayoutSchemaSerializer
         $fingerprint = new PagesSchemaFingerprint;
         $layouts = [];
 
+        // Let the resolver find theme-relative form/groups references.
+        $this->resolver->setThemePath(PagesFeature::gateway()->themePath());
+
         foreach (PagesFeature::gateway()->layouts() as $raw) {
             $layout = $this->serializeLayout(
                 $raw['fileName'],

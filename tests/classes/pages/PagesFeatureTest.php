@@ -64,6 +64,7 @@ class PagesFeatureTest extends PluginTestCase
             public function updatePage(string $fileName, array $viewBag, ?string $markup, ?string $code): array { return []; }
             public function menus(): array { return []; }
             public function menu(string $code): ?array { return null; }
+            public function themePath(): ?string { return null; }
         };
 
         PagesFeature::setGateway($fake);

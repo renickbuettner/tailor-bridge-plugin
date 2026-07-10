@@ -69,4 +69,11 @@ interface PagesGateway
      * @return ?array{code: string, name: ?string, items: array}
      */
     public function menu(string $code): ?array;
+
+    /**
+     * themePath returns the absolute path of the theme static pages live in,
+     * or null when none can be resolved. Used to resolve theme-relative
+     * repeater form/groups references.
+     */
+    public function themePath(): ?string;
 }

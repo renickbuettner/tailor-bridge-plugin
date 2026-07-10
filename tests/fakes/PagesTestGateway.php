@@ -23,6 +23,13 @@ class PagesTestGateway implements PagesGateway
     /** @var array|null the last updatePage() arguments */
     public ?array $lastUpdate = null;
 
+    public ?string $themePath = null;
+
+    public function themePath(): ?string
+    {
+        return $this->themePath;
+    }
+
     public function layouts(): array
     {
         return $this->layoutList;

@@ -215,6 +215,13 @@ class RainLabPagesGateway implements PagesGateway
      *     Reading the site's own theme fixes multisite / per-site-theme installs.
      *  3. `Theme::getEditTheme()` — a last backend-context fallback.
      */
+    public function themePath(): ?string
+    {
+        $theme = $this->theme();
+
+        return $theme ? $theme->getPath() : null;
+    }
+
     protected function theme(): ?Theme
     {
         if ($theme = Theme::getActiveTheme()) {

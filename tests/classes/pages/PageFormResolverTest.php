@@ -70,6 +70,27 @@ class PageFormResolverTest extends PluginTestCase
         $this->assertArrayHasKey('body', $groups['text']['fields']);
     }
 
+    public function testResolvesThemeRelativeReferenceFromMetaFolder()
+    {
+        // A theme whose repeater points at a bare path like "blocks.yaml"
+        // (no $/ or ~/), resolved against the theme's meta/ folder.
+        $themeDir = sys_get_temp_dir() . '/pfr-theme-' . uniqid();
+        mkdir($themeDir . '/meta', 0777, true);
+        $file = $themeDir . '/meta/blocks.yaml';
+        file_put_contents($file, "hero:\n  name: Hero\n  fields:\n    title:\n      type: text\n");
+        $this->tempFiles[] = $file;
+
+        $resolver = new PageFormResolver($themeDir);
+        $groups = $resolver->resolveGroups('blocks.yaml');
+
+        $this->assertArrayHasKey('hero', $groups);
+        $this->assertArrayHasKey('title', $groups['hero']['fields']);
+
+        @unlink($file);
+        @rmdir($themeDir . '/meta');
+        @rmdir($themeDir);
+    }
+
     public function testUnresolvableReferenceYieldsEmpty()
     {
         $this->assertSame([], $this->resolver->resolveForm('$/does/not/exist.yaml'));

@@ -21,6 +21,21 @@ use Yaml;
 class PageFormResolver
 {
     /**
+     * @var string|null absolute theme path, for resolving theme-relative refs
+     */
+    protected ?string $themePath;
+
+    public function __construct(?string $themePath = null)
+    {
+        $this->themePath = $themePath;
+    }
+
+    public function setThemePath(?string $themePath): void
+    {
+        $this->themePath = $themePath;
+    }
+
+    /**
      * resolveForm returns a form reference's fields map: [name => config].
      *
      * @param mixed $ref string path, or an already-loaded array
@@ -62,9 +77,13 @@ class PageFormResolver
     }
 
     /**
-     * load resolves a reference to an array: a string is loaded as a YAML file
-     * (via the `$/` / `~/` symbol resolution), an array is returned as-is,
-     * anything else (or a failure) yields an empty array.
+     * load resolves a reference to an array: a string is loaded as a YAML file,
+     * an array is returned as-is, anything else (or a failure) yields [].
+     *
+     * A string reference is resolved against, in order: the `$/` (plugins) and
+     * `~/` (base) symbols; then — for bare/theme-relative refs — the theme root
+     * and its `meta/` and `partials/` folders. This covers the common ways a
+     * theme's page-builder repeater points at its block form/groups YAML.
      */
     protected function load($ref): array
     {
@@ -77,9 +96,9 @@ class PageFormResolver
         }
 
         try {
-            $path = File::symbolizePath($ref);
+            $path = $this->resolvePath($ref);
 
-            if (!$path || !File::isFile($path)) {
+            if ($path === null) {
                 return [];
             }
 
@@ -88,5 +107,30 @@ class PageFormResolver
         catch (\Throwable $ex) {
             return [];
         }
+    }
+
+    /**
+     * resolvePath finds the first existing file for a reference across the
+     * supported conventions, or null.
+     */
+    protected function resolvePath(string $ref): ?string
+    {
+        $candidates = [File::symbolizePath($ref)];
+
+        // Theme-relative references (no `$/` or `~/` symbol).
+        if ($this->themePath && !str_starts_with($ref, '$') && !str_starts_with($ref, '~')) {
+            $relative = ltrim($ref, '/');
+            $candidates[] = $this->themePath . '/' . $relative;
+            $candidates[] = $this->themePath . '/meta/' . $relative;
+            $candidates[] = $this->themePath . '/partials/' . $relative;
+        }
+
+        foreach ($candidates as $path) {
+            if ($path && File::isFile($path)) {
+                return $path;
+            }
+        }
+
+        return null;
     }
 }
