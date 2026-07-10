@@ -30,3 +30,6 @@
     - "Harden static-pages: nullable theme with site fallback; /ping never 500s on pages introspection"
     - "Resolve external repeater form=/groups= references (page-builder blocks editable in the app)"
     - "Support switch fields on static pages; coerce booleans to INI 1/0"
+1.1.2:
+    - "Bound static-pages recursion (page tree + builder groups/form) against cyclic references"
+    - "Log uncatchable fatal shutdowns so GET /logs surfaces them instead of a silent 500"
