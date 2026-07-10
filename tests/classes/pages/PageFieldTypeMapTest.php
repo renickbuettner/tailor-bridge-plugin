@@ -32,15 +32,32 @@ class PageFieldTypeMapTest extends PluginTestCase
         $this->assertSame('nested', $this->map->kindFor('nesteditems'));
     }
 
+    public function testJsonTypesMapToJson()
+    {
+        $this->assertSame('json', $this->map->kindFor('taglist'));
+        $this->assertSame('json', $this->map->kindFor('checkboxlist'));
+        $this->assertSame('json', $this->map->kindFor('datatable'));
+    }
+
+    public function testPresentationalTypesMapToPresentational()
+    {
+        $this->assertSame('presentational', $this->map->kindFor('ruler'));
+        $this->assertSame('presentational', $this->map->kindFor('section'));
+    }
+
     public function testUnknownTypesFallBackToUnknown()
     {
         $this->assertSame('unknown', $this->map->kindFor('fileupload'));
         $this->assertSame('unknown', $this->map->kindFor('some-future-widget'));
     }
 
-    public function testFileuploadIsReadonly()
+    public function testReadonlyTypes()
     {
         $this->assertTrue($this->map->isReadonly('fileupload'));
+        // Presentational chrome carries no value → never written.
+        $this->assertTrue($this->map->isReadonly('ruler'));
+        $this->assertTrue($this->map->isReadonly('section'));
         $this->assertFalse($this->map->isReadonly('text'));
+        $this->assertFalse($this->map->isReadonly('taglist'));
     }
 }

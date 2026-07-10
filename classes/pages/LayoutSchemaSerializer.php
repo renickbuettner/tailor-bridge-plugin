@@ -167,7 +167,7 @@ class LayoutSchemaSerializer
     {
         $type = (string) ($config['type'] ?? 'text');
         $kind = $this->typeMap->kindFor($type);
-        $normalized = $this->normalizeSyntaxConfig($kind, $config);
+        $normalized = $this->normalizeSyntaxConfig($kind, $type, $config);
 
         // A repeater whose sub-fields resolve to nothing — neither inline nor an
         // external form nor groups — has no schema the app can build an editor
@@ -252,7 +252,7 @@ class LayoutSchemaSerializer
      * normalizeSyntaxConfig extracts the kind-relevant extras, mirroring the
      * Tailor schema config normalization the app already understands.
      */
-    protected function normalizeSyntaxConfig(string $kind, array $config): array
+    protected function normalizeSyntaxConfig(string $kind, string $type, array $config): array
     {
         $result = [];
 
@@ -266,6 +266,22 @@ class LayoutSchemaSerializer
 
         if (isset($config['default']) && $config['default'] !== '') {
             $result['default'] = $config['default'];
+        }
+
+        // Taglist (json kind): mirror the backend widget constraints so the
+        // app's chip editor behaves identically (matches SchemaSerializer).
+        if ($type === 'taglist') {
+            $result['custom_tags'] = (bool) ($config['customTags'] ?? false);
+            // useKey defaults to true in the widget, but custom tags force it
+            // off (free-form values can't be option keys).
+            $useKey = array_key_exists('useKey', $config) ? (bool) $config['useKey'] : true;
+            $result['use_key'] = $result['custom_tags'] ? false : $useKey;
+            if (isset($config['maxItems'])) {
+                $result['max_items'] = (int) $config['maxItems'];
+            }
+            if (isset($config['separator'])) {
+                $result['separator'] = (string) $config['separator'];
+            }
         }
 
         if ($kind === 'media' && isset($config['mode'])) {

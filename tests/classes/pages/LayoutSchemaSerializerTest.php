@@ -267,6 +267,37 @@ class LayoutSchemaSerializerTest extends PluginTestCase
         $this->assertArrayNotHasKey('groups', (array) $inner['config']);
     }
 
+    public function testTaglistBecomesEditableJsonField()
+    {
+        $layout = $this->serializer->serializeLayout('l', 'L', false,
+            '{variable name="classes" label="CSS classes" type="taglist" customTags="true" separator="space"}{/variable}');
+
+        $field = $this->field($layout, 'classes');
+        $this->assertSame('json', $field['kind']);
+        $this->assertFalse($field['custom'], 'taglist is a core type, not custom');
+        $this->assertFalse($field['readonly']);
+        $config = (array) $field['config'];
+        $this->assertTrue($config['custom_tags']);
+        $this->assertFalse($config['use_key']);           // custom tags force use_key off
+        $this->assertSame('space', $config['separator']);
+    }
+
+    public function testPresentationalTypesAreReadonlyChrome()
+    {
+        $layout = $this->serializer->serializeLayout('l', 'L', false,
+            '{variable name="_divider" type="ruler"}{/variable}' .
+            '{variable name="_header" label="Advanced" type="section"}{/variable}');
+
+        foreach (['_divider' => 'ruler', '_header' => 'section'] as $name => $type) {
+            $field = $this->field($layout, $name);
+            $this->assertSame('presentational', $field['kind'], "{$type} → presentational");
+            $this->assertTrue($field['readonly'], "{$type} carries no value → readonly");
+            $this->assertFalse($field['custom'], "{$type} is a known chrome type, not custom");
+        }
+        // The section header keeps its label for the app to render.
+        $this->assertSame('Advanced', $this->field($layout, '_header')['label']);
+    }
+
     public function testUnresolvableGroupsStaysReadonly()
     {
         // Default (real) resolver: an unknown ref resolves to nothing → readonly.

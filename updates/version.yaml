@@ -39,3 +39,6 @@
 1.1.4:
     - "Audit data reads: record successful GET syncs/reads (who read what, when) in the audit log"
     - "Add audit_reads_enabled setting to gate read auditing"
+1.1.5:
+    - "Map static-page taglist fields to the json kind with tag constraints (editable in the app)"
+    - "Map ruler/section layout widgets to a presentational kind (rendered as chrome, no value)"
