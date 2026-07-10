@@ -17,7 +17,7 @@ class Plugin extends PluginBase
      * reports an old build after a deploy, the new code is NOT live yet (e.g.
      * OPcache not cleared / PHP-FPM not restarted, or the wrong branch shipped).
      */
-    const BUILD = '2026-07-10.6';
+    const BUILD = '2026-07-10.7';
 
     /**
      * pluginDetails about this plugin.
@@ -46,6 +46,23 @@ class Plugin extends PluginBase
     {
         ChangeJournal::registerHooks();
         $this->registerFatalErrorLogger();
+        $this->registerAutoLoginRoute();
+    }
+
+    /**
+     * registerAutoLoginRoute redeems a one-time session nonce and logs the
+     * token's user into the backend. It lives here (not in routes.php) because
+     * it needs the stateful `web` middleware to set the session cookie — and it
+     * is deliberately NOT part of the JSON API contract in docs/openapi.yaml.
+     */
+    protected function registerAutoLoginRoute(): void
+    {
+        \Route::get(
+            'tailor-companion/session/{nonce}',
+            [\Renick\TailorCompanion\Classes\Api\BackendLoginController::class, 'login']
+        )
+            ->middleware('web')
+            ->where('nonce', '[A-Za-z0-9]+');
     }
 
     /**

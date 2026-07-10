@@ -13,6 +13,7 @@ use Renick\TailorCompanion\Classes\Api\PagesSchemaController;
 use Renick\TailorCompanion\Classes\Api\PingController;
 use Renick\TailorCompanion\Classes\Api\RecordsController;
 use Renick\TailorCompanion\Classes\Api\SchemaController;
+use Renick\TailorCompanion\Classes\Api\SessionController;
 use Renick\TailorCompanion\Classes\Api\SitesController;
 use Renick\TailorCompanion\Classes\Api\VersionController;
 use Renick\TailorCompanion\Classes\Middleware\AuditRead;
@@ -45,6 +46,9 @@ Route::group([
         // Dependency-free deploy marker — confirms which plugin code is live
         // even when /ping's optional subsystems are misconfigured.
         Route::get('version', VersionController::class);
+        // Mints a one-time URL that logs the token's user into the backend.
+        // The redeeming web route is registered in Plugin::boot (needs sessions).
+        Route::post('session', SessionController::class);
         Route::get('sites', SitesController::class);
         // Tail of the application error log (console view in the app)
         Route::get('logs', LogsController::class);

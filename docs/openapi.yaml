@@ -158,6 +158,36 @@ paths:
                             description: Website URL for the app's Preview tab; null → use the paired backend URL.
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /session:
+    post:
+      tags: [Auth]
+      summary: Start a backend session
+      description: >-
+        Mints a single-use, short-lived URL that logs the token's user into the
+        OctoberCMS backend. The app opens the returned URL in a web view (a
+        top-level navigation cannot carry the Bearer header, so identity is
+        bridged via a one-time nonce). The redeeming route is not part of this
+        API contract.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                        description: One-time URL that starts the backend session.
+                      expires_in:
+                        type: integer
+                        description: Seconds until the URL expires.
+                        example: 60
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /version:
     get:
       tags: [Auth]
