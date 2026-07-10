@@ -13,6 +13,9 @@ use System\Classes\SiteManager;
  */
 class RainLabPagesGateway implements PagesGateway
 {
+    /** Hard cap on page-tree nesting — guards against a cyclic hierarchy. */
+    protected const MAX_TREE_DEPTH = 32;
+
     /**
      * layouts returns raw layout templates declaring the staticPage component.
      */
@@ -55,12 +58,19 @@ class RainLabPagesGateway implements PagesGateway
 
         $pageList = new \RainLab\Pages\Classes\PageList($theme);
 
-        $mapNodes = function (array $nodes) use (&$mapNodes) {
+        // Depth-guarded: a malformed meta/static-pages.yaml can describe a
+        // cyclic hierarchy; without a bound this recursion overflows the stack
+        // (empty-body 500, no catchable exception). Real page trees are shallow,
+        // so a generous cap changes nothing for valid content.
+        $mapNodes = function (array $nodes, int $depth = 0) use (&$mapNodes) {
+            if ($depth >= self::MAX_TREE_DEPTH) {
+                return [];
+            }
             $result = [];
             foreach ($nodes as $node) {
                 $result[] = [
                     'fileName' => $node->page->getBaseFileName(),
-                    'children' => $mapNodes($node->subpages),
+                    'children' => $mapNodes($node->subpages, $depth + 1),
                 ];
             }
             return $result;

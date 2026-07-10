@@ -228,6 +228,34 @@ class LayoutSchemaSerializerTest extends PluginTestCase
         $this->assertSame('media', $src['kind']);
     }
 
+    public function testCyclicGroupsReferenceTerminatesInsteadOfOverflowing()
+    {
+        // A groups ref whose block contains a repeater pointing back at the SAME
+        // ref — an infinite cycle. Without the depth guard this recurses until
+        // the stack overflows (the pr11 empty-body 500). The serializer must
+        // instead terminate, capping the depth and leaving the deepest repeater
+        // read-only (lossless).
+        $fake = new class extends PageFormResolver {
+            public function resolveGroups($ref): array
+            {
+                if ($ref === 'cycle') {
+                    return ['block' => ['name' => 'Block', 'fields' => [
+                        'inner' => ['type' => 'repeater', 'label' => 'Inner', 'groups' => 'cycle'],
+                    ]]];
+                }
+                return parent::resolveGroups($ref);
+            }
+        };
+
+        $layout = (new LayoutSchemaSerializer($fake))->serializeLayout('l', 'L', false,
+            '{repeater name="content_sections" prompt="Add" groups="cycle"}<div></div>{/repeater}');
+
+        // It returned at all (no overflow) and the top level is still editable.
+        $field = $this->field($layout, 'content_sections');
+        $this->assertFalse($field['readonly']);
+        $this->assertArrayHasKey('groups', (array) $field['config']);
+    }
+
     public function testUnresolvableGroupsStaysReadonly()
     {
         // Default (real) resolver: an unknown ref resolves to nothing → readonly.

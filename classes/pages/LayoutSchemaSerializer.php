@@ -25,9 +25,23 @@ class LayoutSchemaSerializer
     public const SEO_TAB = 'SEO';
     public const PLACEHOLDER_PREFIX = 'placeholder:';
 
+    /**
+     * Hard cap on nested sub-field recursion. A page-builder groups/form YAML
+     * can reference itself (a block whose repeater points back at the same
+     * groups file) — without a bound, resolving it recurses forever and the
+     * request dies with an uncatchable fatal (stack overflow / FPM timeout,
+     * empty-body 500). Legitimate block nesting is only a few levels deep, so
+     * this cap never truncates real content; anything deeper round-trips
+     * read-only (lossless), exactly like an unresolvable reference.
+     */
+    protected const MAX_NESTING = 10;
+
     protected PageFieldTypeMap $typeMap;
     protected PlaceholderCodec $placeholders;
     protected PageFormResolver $resolver;
+
+    /** Current sub-field recursion depth (see MAX_NESTING). */
+    protected int $nestingDepth = 0;
 
     public function __construct(?PageFormResolver $resolver = null)
     {
@@ -167,12 +181,25 @@ class LayoutSchemaSerializer
      */
     protected function serializeSubFieldMap(array $fieldMap): array
     {
-        $result = [];
-        foreach ($fieldMap as $subName => $subConfig) {
-            $result[] = $this->serializeSyntaxField((string) $subName, (array) $subConfig);
+        // Depth guard: past the cap, stop resolving deeper — the nested field
+        // then has no sub-fields and is marked read-only (lossless round-trip),
+        // breaking any self-referential groups/form cycle before it fatals.
+        if ($this->nestingDepth >= self::MAX_NESTING) {
+            return [];
         }
 
-        return $result;
+        $this->nestingDepth++;
+        try {
+            $result = [];
+            foreach ($fieldMap as $subName => $subConfig) {
+                $result[] = $this->serializeSyntaxField((string) $subName, (array) $subConfig);
+            }
+
+            return $result;
+        }
+        finally {
+            $this->nestingDepth--;
+        }
     }
 
     /**

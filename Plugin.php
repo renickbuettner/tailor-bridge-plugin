@@ -17,7 +17,7 @@ class Plugin extends PluginBase
      * reports an old build after a deploy, the new code is NOT live yet (e.g.
      * OPcache not cleared / PHP-FPM not restarted, or the wrong branch shipped).
      */
-    const BUILD = '2026-07-10.1';
+    const BUILD = '2026-07-10.2';
 
     /**
      * pluginDetails about this plugin.
@@ -45,6 +45,41 @@ class Plugin extends PluginBase
     public function boot()
     {
         ChangeJournal::registerHooks();
+        $this->registerFatalErrorLogger();
+    }
+
+    /**
+     * registerFatalErrorLogger records uncatchable fatals (OOM, timeout, stack
+     * overflow) to the application log so they surface via GET /logs.
+     *
+     * Some failures — e.g. a runaway recursion resolving a malformed static-page
+     * builder — die outside Laravel's exception handler, producing an empty-body
+     * 500 with nothing logged. A shutdown hook is the only place to catch those.
+     * It is deliberately tiny and self-guarding so it can never itself fail a
+     * request (and does nothing on a normal shutdown).
+     */
+    protected function registerFatalErrorLogger(): void
+    {
+        register_shutdown_function(function () {
+            $error = error_get_last();
+            $fatal = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
+
+            if (!$error || !in_array($error['type'] ?? 0, $fatal, true)) {
+                return;
+            }
+
+            try {
+                \Log::error(sprintf(
+                    'TailorCompanion: fatal shutdown — %s in %s:%d',
+                    $error['message'] ?? '',
+                    $error['file'] ?? '',
+                    $error['line'] ?? 0
+                ));
+            }
+            catch (\Throwable $ignored) {
+                // Never let diagnostics break shutdown.
+            }
+        });
     }
 
     /**
