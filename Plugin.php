@@ -17,7 +17,7 @@ class Plugin extends PluginBase
      * reports an old build after a deploy, the new code is NOT live yet (e.g.
      * OPcache not cleared / PHP-FPM not restarted, or the wrong branch shipped).
      */
-    const BUILD = '2026-07-10.7';
+    const BUILD = '2026-07-11.1';
 
     /**
      * pluginDetails about this plugin.
@@ -37,6 +37,10 @@ class Plugin extends PluginBase
      */
     public function register()
     {
+        $this->registerConsoleCommand(
+            'tailorcompanion.apiuser',
+            \Renick\TailorCompanion\Console\ProvisionApiUser::class
+        );
     }
 
     /**

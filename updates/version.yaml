@@ -46,3 +46,5 @@
     - "Add branding settings (app title, logo, preview website URL) exposed on /ping"
 1.1.7:
     - "Add POST /session: one-time URL that logs the token's user into the backend (app-to-backend SSO)"
+1.1.8:
+    - "Add tailor-companion:api-user console command to create/reset a backend user with API access (e.g. an App Store review demo account)"
